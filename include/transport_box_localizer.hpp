@@ -19,10 +19,16 @@ private:
     Pointcloud::Ptr loadPointcloudFromPcd(const std::string &filename);
     void publishCloud(Pointcloud::Ptr cloud, const ros::Publisher &pub, const std::string &frameId);
     void runBehavior(void);
+    void laserpointcallback(const sensor_msgs::PointCloud2::ConstPtr &pointMsgIn);
+
     Pointcloud::Ptr mapCloud;
     std::thread *run_behavior_thread_;
 
     ros::Publisher cloudPub;
+    ros::Subscriber cloudSub;
+
+    typedef PointMatcher<float> PM;
+    typedef PM::DataPoints DP;
 
 public:
     TransportBoxLocalizer();

@@ -2,9 +2,18 @@
 namespace transport_box_localizer {
 TransportBoxLocalizer::TransportBoxLocalizer() {
     ros::NodeHandle nh("~");
-    cloudPub = nh.advertise<sensor_msgs::PointCloud2>("icp_map", 1, true);
     const std::string pclFilename = nh.param<std::string>("pcd_filename", "");
     mapCloud = loadPointcloudFromPcd(pclFilename);
+    // publish
+    cloudPub = nh.advertise<sensor_msgs::PointCloud2>("icp_map", 1, true);
+    // subscribe
+    cloudSub = nh.subscribe<sensor_msgs::PointCloud2>(
+        "/tim551_cloud", 100, boost::bind(&TransportBoxLocalizer::laserpointcallback, this, _1));
+
+    // Create the default ICP algorithm
+    PM::ICP icp;
+    // See the implementation of setDefault() to create a custom ICP algorithm
+    icp.setDefault();
     run_behavior_thread_ = new std::thread(std::bind(&TransportBoxLocalizer::runBehavior, this));
 }
 
@@ -27,10 +36,16 @@ void TransportBoxLocalizer::publishCloud(Pointcloud::Ptr cloud, const ros::Publi
 
 void TransportBoxLocalizer::runBehavior(void) {
     ros::NodeHandle nh;
-    ros::Rate rate(25.0);
+    ros::Rate rate(15.0);
     while (nh.ok()) {
-        publishCloud(mapCloud, cloudPub, "cloud_frame");
+        publishCloud(mapCloud, cloudPub, "world");
         rate.sleep();
+    }
+}
+
+void TransportBoxLocalizer::laserpointcallback(const sensor_msgs::PointCloud2::ConstPtr &pointMsgIn) {
+    if (pointMsgIn == nullptr) {
+        return;
     }
 }
 

@@ -2,7 +2,7 @@
 <launch>
   <node pkg="transport_box_loc" type="localizer_node" respawn="true" name="localizer_node" output="screen">
 
-    <param name="pcd_filename"   type="string" value="pcd.pcd"  />
+    <param name="pcd_filename"   type="string" value="/home/ubuntu-rog/Documents/dataset/forest.pcd"  />
 
   </node>
 </launch>
