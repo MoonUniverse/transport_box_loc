@@ -1,6 +1,18 @@
 cmake_minimum_required(VERSION 2.8.3)
 project(transport_box_loc)
 
+find_package(Boost REQUIRED COMPONENTS 
+thread
+system
+filesystem
+program_options
+date_time
+chrono)
+find_package(PCL REQUIRED)
+find_package(libpointmatcher REQUIRED)
+find_package(Eigen3 REQUIRED)
+
+
 find_package(catkin REQUIRED COMPONENTS
     pcl_conversions
     pcl_ros
@@ -15,10 +27,6 @@ find_package(catkin REQUIRED COMPONENTS
     roslib
     libpointmatcher
 )
-find_package(PCL REQUIRED)
-find_package(libpointmatcher REQUIRED)
-find_package(Eigen3 REQUIRED)
-
 
 add_definitions("-std=c++14")
 
