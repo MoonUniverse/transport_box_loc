@@ -14,6 +14,7 @@
 
 #include "geometry_msgs/PoseArray.h"
 #include "pointmatcher/PointMatcher.h"
+#include "pointmatcher_ros/point_cloud.h"
 using Point = pcl::PointXYZ;
 using Pointcloud = pcl::PointCloud<Point>;
 
@@ -49,6 +50,7 @@ private:
 
     ros::Publisher cloudPub;
     ros::Publisher laser_filtered_point_pub;
+    ros::Publisher laser_icp_point_pub;
     ros::Publisher box_legs_array_pub;
     ros::Subscriber cloudSub;
 

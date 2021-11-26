@@ -35,18 +35,14 @@ TransportBoxLocalizer::TransportBoxLocalizer() {
     }
     // publish
     cloudPub = nh.advertise<sensor_msgs::PointCloud2>("icp_map", 10, true);
-    // laser_filtered_point_pub = nh.advertise<sensor_msgs::PointCloud2>("laser_filtered_point", 10);
+    laser_filtered_point_pub = nh.advertise<sensor_msgs::PointCloud2>("laser_filtered_point", 10);
+    laser_icp_point_pub = nh.advertise<sensor_msgs::PointCloud2>("laser_icp_point_pub", 10);
     box_legs_array_pub = nh.advertise<geometry_msgs::PoseArray>("box_legs", 10);
 
     // subscribe
     cloudSub = nh.subscribe<sensor_msgs::PointCloud2>(
         "/tim551_cloud", 100, boost::bind(&TransportBoxLocalizer::lidarpointcallback, this, _1));
 
-    // const DP ref(DP::load(mapCloud));
-    // Create the default ICP algorithm
-    PM::ICP icp;
-    // See the implementation of setDefault() to create a custom ICP algorithm
-    icp.setDefault();
     run_behavior_thread_ = new std::thread(std::bind(&TransportBoxLocalizer::runBehavior, this));
 }
 
@@ -69,7 +65,7 @@ void TransportBoxLocalizer::publishCloud(Pointcloud::Ptr cloud, const ros::Publi
 
 void TransportBoxLocalizer::runBehavior(void) {
     ros::NodeHandle nh;
-    ros::Rate rate(15.0);
+    ros::Rate rate(1.0);
     while (nh.ok()) {
         publishCloud(mapCloud, cloudPub, "laser_sick_tim551");
         rate.sleep();
@@ -79,7 +75,7 @@ DP TransportBoxLocalizer::fromPCL(const Pointcloud &pcl) {
     // todo this can result in data loss???
     sensor_msgs::PointCloud2 ros;
     pcl::toROSMsg(pcl, ros);
-    return pointmatcher_ros::rosMsgToPointMatcherCloud<float>(ros);
+    return PointMatcher_ros::rosMsgToPointMatcherCloud<float>(ros);
 }
 
 void TransportBoxLocalizer::lidarpointcallback(const sensor_msgs::PointCloud2::ConstPtr &pointMsgIn) {
@@ -125,7 +121,21 @@ void TransportBoxLocalizer::lidarpointcallback(const sensor_msgs::PointCloud2::C
     }
     ROS_DEBUG("point_count: %d", point_count);
     laser_filtered_point_pub.publish(filtered_point);
-    // Clustering
+    DP cloud = PointMatcher_ros::rosMsgToPointMatcherCloud<float>(filtered_point); // Clustering
+    DP refCloud = fromPCL(*mapCloud);
+    // Create the default ICP algorithm
+    PM::ICP icp;
+    icp.setDefault();
+
+    PM::TransformationParameters T = icp(cloud, refCloud);
+    cout << "Final transformation:" << endl << T << endl;
+    // Transform data to express it in ref
+    DP data_out(cloud);
+    icp.transformations.apply(data_out, T);
+
+    sensor_msgs::PointCloud2 icp_points = PointMatcher_ros::pointMatcherCloudToRosMsg<float>(
+        data_out, filtered_point.header.frame_id, filtered_point.header.stamp);
+
     float sum_x_pos = 0, sum_y_pos = 0;
     uint32_t classify_number = 0;
     box_legs cluster_box_legs_coordinates;

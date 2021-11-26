@@ -26,6 +26,7 @@ find_package(catkin REQUIRED COMPONENTS
     tf2_geometry_msgs
     roslib
     libpointmatcher
+    libpointmatcher_ros
 )
 
 add_definitions("-std=c++14")
