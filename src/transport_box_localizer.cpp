@@ -1,6 +1,6 @@
 #include "transport_box_localizer.hpp"
 namespace transport_box_localizer {
-TransportBoxLocalizer::TransportBoxLocalizer() {
+TransportBoxLocalizer::TransportBoxLocalizer() : it_since_initialized_(0) {
     ros::NodeHandle nh("~");
     const std::string pclFilename = nh.param<std::string>("pcd_filename", "");
     mapCloud = loadPointcloudFromPcd(pclFilename);
@@ -67,7 +67,7 @@ void TransportBoxLocalizer::runBehavior(void) {
     ros::NodeHandle nh;
     ros::Rate rate(1.0);
     while (nh.ok()) {
-        publishCloud(mapCloud, cloudPub, "laser_sick_tim551");
+        // publishCloud(mapCloud, cloudPub, "laser_sick_tim551");
         rate.sleep();
     }
 }
@@ -76,6 +76,11 @@ DP TransportBoxLocalizer::fromPCL(const Pointcloud &pcl) {
     sensor_msgs::PointCloud2 ros;
     pcl::toROSMsg(pcl, ros);
     return PointMatcher_ros::rosMsgToPointMatcherCloud<float>(ros);
+}
+
+void TransportBoxLocalizer::estimateBodyPose(geometry_msgs::PoseArray num_legs) {
+    if (it_since_initialized_ < 1) {
+    }
 }
 
 void TransportBoxLocalizer::lidarpointcallback(const sensor_msgs::PointCloud2::ConstPtr &pointMsgIn) {
@@ -121,20 +126,6 @@ void TransportBoxLocalizer::lidarpointcallback(const sensor_msgs::PointCloud2::C
     }
     ROS_DEBUG("point_count: %d", point_count);
     laser_filtered_point_pub.publish(filtered_point);
-    DP cloud = PointMatcher_ros::rosMsgToPointMatcherCloud<float>(filtered_point); // Clustering
-    DP refCloud = fromPCL(*mapCloud);
-    // Create the default ICP algorithm
-    PM::ICP icp;
-    icp.setDefault();
-
-    PM::TransformationParameters T = icp(cloud, refCloud);
-    cout << "Final transformation:" << endl << T << endl;
-    // Transform data to express it in ref
-    DP data_out(cloud);
-    icp.transformations.apply(data_out, T);
-
-    sensor_msgs::PointCloud2 icp_points = PointMatcher_ros::pointMatcherCloudToRosMsg<float>(
-        data_out, filtered_point.header.frame_id, filtered_point.header.stamp);
 
     float sum_x_pos = 0, sum_y_pos = 0;
     uint32_t classify_number = 0;
@@ -185,7 +176,7 @@ void TransportBoxLocalizer::lidarpointcallback(const sensor_msgs::PointCloud2::C
         ROS_INFO("cluster_box_legs_.xy_coordinates[0]:%f,cluster_box_legs_.box_legs.xy_coordinates[1]:%f",
                  cluster_box_legs_[i].xy_coordinates[0], cluster_box_legs_[i].xy_coordinates[1]);
     }
-
+    ROS_INFO("  ");
     box_legs_.clear();
     cluster_box_legs_.clear();
     poseArray.poses.clear();

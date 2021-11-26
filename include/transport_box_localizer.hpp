@@ -43,6 +43,7 @@ private:
     void publishCloud(Pointcloud::Ptr cloud, const ros::Publisher &pub, const std::string &frameId);
     void runBehavior(void);
     void lidarpointcallback(const sensor_msgs::PointCloud2::ConstPtr &pointMsgIn);
+    void estimateBodyPose(geometry_msgs::PoseArray num_legs);
     DP fromPCL(const Pointcloud &pcl);
 
     Pointcloud::Ptr mapCloud;
@@ -62,6 +63,8 @@ private:
     // Debug
     geometry_msgs::PoseArray poseArray;
     geometry_msgs::Pose box_legs_pose;
+
+    unsigned it_since_initialized_;
 
 public:
     TransportBoxLocalizer();
