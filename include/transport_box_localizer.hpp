@@ -13,8 +13,8 @@
 #include <thread>
 
 #include "geometry_msgs/PoseArray.h"
-#include "pointmatcher/PointMatcher.h"
-#include "pointmatcher_ros/point_cloud.h"
+// #include "pointmatcher/PointMatcher.h"
+// #include "pointmatcher_ros/point_cloud.h"
 using Point = pcl::PointXYZ;
 using Pointcloud = pcl::PointCloud<Point>;
 
@@ -34,8 +34,8 @@ typedef struct {
     float xy_coordinates[2];
 } box_legs;
 
-typedef PointMatcher<float> PM;
-typedef PM::DataPoints DP;
+// typedef PointMatcher<float> PM;
+// typedef PM::DataPoints DP;
 
 class TransportBoxLocalizer {
 private:
@@ -44,7 +44,7 @@ private:
     void runBehavior(void);
     void lidarpointcallback(const sensor_msgs::PointCloud2::ConstPtr &pointMsgIn);
     void estimateBodyPose(geometry_msgs::PoseArray num_legs);
-    DP fromPCL(const Pointcloud &pcl);
+    // DP fromPCL(const Pointcloud &pcl);
 
     Pointcloud::Ptr mapCloud;
     std::thread *run_behavior_thread_;

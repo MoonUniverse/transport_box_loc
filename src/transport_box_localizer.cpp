@@ -71,12 +71,12 @@ void TransportBoxLocalizer::runBehavior(void) {
         rate.sleep();
     }
 }
-DP TransportBoxLocalizer::fromPCL(const Pointcloud &pcl) {
-    // todo this can result in data loss???
-    sensor_msgs::PointCloud2 ros;
-    pcl::toROSMsg(pcl, ros);
-    return PointMatcher_ros::rosMsgToPointMatcherCloud<float>(ros);
-}
+// DP TransportBoxLocalizer::fromPCL(const Pointcloud &pcl) {
+//     // todo this can result in data loss???
+//     sensor_msgs::PointCloud2 ros;
+//     pcl::toROSMsg(pcl, ros);
+//     return PointMatcher_ros::rosMsgToPointMatcherCloud<float>(ros);
+// }
 
 void TransportBoxLocalizer::estimateBodyPose(geometry_msgs::PoseArray num_legs) {
     if (it_since_initialized_ < 1) {

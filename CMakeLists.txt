@@ -9,7 +9,7 @@ program_options
 date_time
 chrono)
 find_package(PCL REQUIRED)
-find_package(libpointmatcher REQUIRED)
+# find_package(libpointmatcher REQUIRED)
 find_package(Eigen3 REQUIRED)
 
 
@@ -25,8 +25,8 @@ find_package(catkin REQUIRED COMPONENTS
     tf2_ros
     tf2_geometry_msgs
     roslib
-    libpointmatcher
-    libpointmatcher_ros
+    # libpointmatcher
+    # libpointmatcher_ros
 )
 
 add_definitions("-std=c++14")
@@ -44,7 +44,7 @@ catkin_package(
 
 include_directories(
     include
-    ${libpointmatcher_INCLUDE_DIRS}
+    # ${libpointmatcher_INCLUDE_DIRS}
     ${PCL_INCLUDE_DIRS}
     ${catkin_INCLUDE_DIRS}
     ${EIGEN_INCLUDE_DIRS}
@@ -56,7 +56,7 @@ add_library(transport_box_localizer
 )
 
 target_link_libraries(transport_box_localizer
-  ${libpointmatcher_LIBRARIES}
+  # ${libpointmatcher_LIBRARIES}
   ${catkin_LIBRARIES}
   ${PCL_COMMON_LIBRARIES}
   ${PCL_IO_LIBRARIES}
