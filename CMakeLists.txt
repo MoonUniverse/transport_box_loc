@@ -11,6 +11,7 @@ chrono)
 find_package(PCL REQUIRED)
 # find_package(libpointmatcher REQUIRED)
 find_package(Eigen3 REQUIRED)
+find_package(Ceres REQUIRED)
 
 
 find_package(catkin REQUIRED COMPONENTS
@@ -44,7 +45,7 @@ catkin_package(
 
 include_directories(
     include
-    # ${libpointmatcher_INCLUDE_DIRS}
+    ${CERES_INCLUDE_DIRS}
     ${PCL_INCLUDE_DIRS}
     ${catkin_INCLUDE_DIRS}
     ${EIGEN_INCLUDE_DIRS}
@@ -60,6 +61,7 @@ target_link_libraries(transport_box_localizer
   ${catkin_LIBRARIES}
   ${PCL_COMMON_LIBRARIES}
   ${PCL_IO_LIBRARIES}
+  ${CERES_INCLUDE_DIRS}
 )
 
 add_executable(localizer_node

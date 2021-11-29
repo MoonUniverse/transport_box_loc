@@ -11,15 +11,23 @@
 #include <boost/algorithm/string.hpp>
 #include <boost/thread.hpp>
 #include <thread>
+#include <vector>
 
+#include "ceres/ceres.h"
 #include "geometry_msgs/PoseArray.h"
-// #include "pointmatcher/PointMatcher.h"
-// #include "pointmatcher_ros/point_cloud.h"
+#include "gflags/gflags.h"
+#include "glog/logging.h"
 using Point = pcl::PointXYZ;
 using Pointcloud = pcl::PointCloud<Point>;
 
 using namespace std;
 using namespace Eigen;
+
+using ceres::AutoDiffCostFunction;
+using ceres::CostFunction;
+using ceres::Problem;
+using ceres::Solve;
+using ceres::Solver;
 
 typedef Eigen::Matrix<Eigen::Vector4d, Eigen::Dynamic, 1> List4DPoints;
 
@@ -34,8 +42,75 @@ typedef struct {
     float xy_coordinates[2];
 } box_legs;
 
-// typedef PointMatcher<float> PM;
-// typedef PM::DataPoints DP;
+struct F1 {
+    F1(double x, double y) : x_(x), y_(y) {}
+    template <typename T>
+    bool operator()(const T *const Tx, const T *const Ty, const T *const Tangle, T *residual) const {
+        residual[0] =
+            y_ - Ty - 0.35 * cosf(Tangle) - 0.0 * sinf(Tangle) + x_ - Tx + 0.35 * sinf(Tangle) - 0.0 * cosf(Tangle);
+        return true;
+    }
+
+private:
+    const double x_;
+    const double y_;
+};
+
+struct F2 {
+    F2(double x, double y) : x_(x), y_(y) {}
+    template <typename T>
+    bool operator()(const T *const Tx, const T *const Ty, const T *const Tangle, T *residual) const {
+        residual[0] = y_ - Ty - 0.35 * cosf(Tangle) - (-0.15) * sinf(Tangle) + x_ - Tx + 0.35 * sinf(Tangle) -
+                      (-0.15) * cosf(Tangle);
+        return true;
+    }
+
+private:
+    const double x_;
+    const double y_;
+};
+
+struct F3 {
+    F3(double x, double y) : x_(x), y_(y) {}
+    template <typename T>
+    bool operator()(const T *const Tx, const T *const Ty, const T *const Tangle, T *residual) const {
+        residual[0] = y_ - Ty - (-0.35) * cosf(Tangle) - (-0.15) * sinf(Tangle) + x_ - Tx + (-0.35) * sinf(Tangle) -
+                      (-0.15) * cosf(Tangle);
+        return true;
+    }
+
+private:
+    const double x_;
+    const double y_;
+};
+
+struct F4 {
+    F4(double x, double y) : x_(x), y_(y) {}
+    template <typename T>
+    bool operator()(const T *const Tx, const T *const Ty, const T *const Tangle, T *residual) const {
+        residual[0] =
+            y_ - Ty - 0.35 * cosf(Tangle) - 0.55 * sinf(Tangle) + x_ - Tx + 0.35 * sinf(Tangle) - 0.55 * cosf(Tangle);
+        return true;
+    }
+
+private:
+    const double x_;
+    const double y_;
+};
+
+struct F5 {
+    F5(double x, double y) : x_(x), y_(y) {}
+    template <typename T>
+    bool operator()(const T *const Tx, const T *const Ty, const T *const Tangle, T *residual) const {
+        residual[0] = y_ - Ty - (-0.35) * cosf(Tangle) - 0.55 * sinf(Tangle) + x_ - Tx + (-0.35) * sinf(Tangle) -
+                      0.55 * cosf(Tangle);
+        return true;
+    }
+
+private:
+    const double x_;
+    const double y_;
+};
 
 class TransportBoxLocalizer {
 private:
@@ -51,11 +126,11 @@ private:
 
     ros::Publisher cloudPub;
     ros::Publisher laser_filtered_point_pub;
-    ros::Publisher laser_icp_point_pub;
     ros::Publisher box_legs_array_pub;
     ros::Subscriber cloudSub;
 
     double detect_up_, detect_down_, detect_right_, detect_left_, lidar_intensity_;
+    double initial_x_, initial_y_, initial_angle_;
 
     vector<box_legs> box_legs_;
     vector<box_legs> cluster_box_legs_;
