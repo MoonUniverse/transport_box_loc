@@ -6,6 +6,8 @@ Panels:
       Expanded:
         - /Global Options1
         - /Status1
+        - /Pose1
+        - /Axes1
       Splitter Ratio: 0.5
     Tree Height: 549
   - Class: rviz/Selection
@@ -142,7 +144,7 @@ Visualization Manager:
       Axes Radius: 0.009999999776482582
       Class: rviz/PoseArray
       Color: 255; 25; 0
-      Enabled: true
+      Enabled: false
       Head Length: 0.07000000029802322
       Head Radius: 0.029999999329447746
       Name: PoseArray
@@ -152,6 +154,30 @@ Visualization Manager:
       Shape: Arrow (Flat)
       Topic: /localizer_node/box_legs
       Unreliable: false
+      Value: false
+    - Alpha: 1
+      Axes Length: 0.20000000298023224
+      Axes Radius: 0.019999999552965164
+      Class: rviz/Pose
+      Color: 255; 25; 0
+      Enabled: true
+      Head Length: 0.30000001192092896
+      Head Radius: 0.10000000149011612
+      Name: Pose
+      Queue Size: 1
+      Shaft Length: 1
+      Shaft Radius: 0.05000000074505806
+      Shape: Axes
+      Topic: /localizer_node/box_coordinate
+      Unreliable: false
+      Value: true
+    - Alpha: 0.5
+      Class: rviz/Axes
+      Enabled: true
+      Length: 0.5
+      Name: Axes
+      Radius: 0.05000000074505806
+      Reference Frame: laser_sick_tim551
       Value: true
   Enabled: true
   Global Options:
@@ -190,10 +216,10 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Scale: 238.83868408203125
+      Scale: 329.8245544433594
       Target Frame: <Fixed Frame>
-      X: 0.6831833720207214
-      Y: -0.3650682866573334
+      X: 0.5936324000358582
+      Y: 0.1098162829875946
     Saved: ~
 Window Geometry:
   Displays:
@@ -211,5 +237,5 @@ Window Geometry:
   Views:
     collapsed: true
   Width: 1267
-  X: 771
-  Y: 189
+  X: 382
+  Y: 404

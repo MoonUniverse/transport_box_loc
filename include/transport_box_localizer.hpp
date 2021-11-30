@@ -6,6 +6,7 @@
 #include <pcl_conversions/pcl_conversions.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <tf/tf.h>
 
 #include <Eigen/Dense>
 #include <boost/algorithm/string.hpp>
@@ -42,75 +43,84 @@ typedef struct {
     float xy_coordinates[2];
 } box_legs;
 
+typedef struct {
+    double x;
+    double y;
+    double z;
+} actual_box_leg;
+
 struct F1 {
-    F1(double x, double y) : x_(x), y_(y) {}
+    F1(double x, double y, double a, double b) : x_(x), y_(y), a_(a), b_(b) {}
     template <typename T>
     bool operator()(const T *const Tx, const T *const Ty, const T *const Tangle, T *residual) const {
-        residual[0] =
-            y_ - Ty - 0.35 * cosf(Tangle) - 0.0 * sinf(Tangle) + x_ - Tx + 0.35 * sinf(Tangle) - 0.0 * cosf(Tangle);
+        residual[0] = y_ - Ty[0] - b_ * cos(Tangle[0]) - a_ * sin(Tangle[0]) + x_ - Tx[0] + b_ * sin(Tangle[0]) -
+                      a_ * cos(Tangle[0]);
         return true;
     }
 
 private:
     const double x_;
     const double y_;
+    const double a_;
+    const double b_;
 };
 
-struct F2 {
-    F2(double x, double y) : x_(x), y_(y) {}
-    template <typename T>
-    bool operator()(const T *const Tx, const T *const Ty, const T *const Tangle, T *residual) const {
-        residual[0] = y_ - Ty - 0.35 * cosf(Tangle) - (-0.15) * sinf(Tangle) + x_ - Tx + 0.35 * sinf(Tangle) -
-                      (-0.15) * cosf(Tangle);
-        return true;
-    }
+// struct F2 {
+//     F2(double x, double y) : x_(x), y_(y) {}
+//     template <typename T>
+//     bool operator()(const T *const Tx, const T *const Ty, const T *const Tangle, T *residual) const {
+//         residual[0] = y_ - Ty[0] - (-0.335) * cos(Tangle[0]) - 0.33 * sin(Tangle[0]) + x_ - Tx[0] +
+//                       (-0.335) * sin(Tangle[0]) - 0.33 * cos(Tangle[0]);
+//         return true;
+//     }
 
-private:
-    const double x_;
-    const double y_;
-};
+// private:
+//     const double x_;
+//     const double y_;
+// };
 
-struct F3 {
-    F3(double x, double y) : x_(x), y_(y) {}
-    template <typename T>
-    bool operator()(const T *const Tx, const T *const Ty, const T *const Tangle, T *residual) const {
-        residual[0] = y_ - Ty - (-0.35) * cosf(Tangle) - (-0.15) * sinf(Tangle) + x_ - Tx + (-0.35) * sinf(Tangle) -
-                      (-0.15) * cosf(Tangle);
-        return true;
-    }
+// struct F3 {
+//     F3(double x, double y) : x_(x), y_(y) {}
+//     template <typename T>
+//     bool operator()(const T *const Tx, const T *const Ty, const T *const Tangle, T *residual) const {
+//         residual[0] = y_ - Ty[0] - 0.335 * cos(Tangle[0]) - 0.33 * sin(Tangle[0]) + x_ - Tx[0] +
+//                       0.335 * sin(Tangle[0]) - 0.33 * cos(Tangle[0]);
+//         return true;
+//     }
 
-private:
-    const double x_;
-    const double y_;
-};
+// private:
+//     const double x_;
+//     const double y_;
+// };
 
-struct F4 {
-    F4(double x, double y) : x_(x), y_(y) {}
-    template <typename T>
-    bool operator()(const T *const Tx, const T *const Ty, const T *const Tangle, T *residual) const {
-        residual[0] =
-            y_ - Ty - 0.35 * cosf(Tangle) - 0.55 * sinf(Tangle) + x_ - Tx + 0.35 * sinf(Tangle) - 0.55 * cosf(Tangle);
-        return true;
-    }
+// struct F4 {
+//     F4(double x, double y) : x_(x), y_(y) {}
+//     template <typename T>
+//     bool operator()(const T *const Tx, const T *const Ty, const T *const Tangle, T *residual) const {
+//         residual[0] = y_ - Ty[0] - 0.335 * cos(Tangle[0]) - 0.0 * sin(Tangle[0]) + x_ - Tx[0] + 0.335 *
+//         sin(Tangle[0]) -
+//                       0.0 * cos(Tangle[0]);
+//         return true;
+//     }
 
-private:
-    const double x_;
-    const double y_;
-};
+// private:
+//     const double x_;
+//     const double y_;
+// };
 
-struct F5 {
-    F5(double x, double y) : x_(x), y_(y) {}
-    template <typename T>
-    bool operator()(const T *const Tx, const T *const Ty, const T *const Tangle, T *residual) const {
-        residual[0] = y_ - Ty - (-0.35) * cosf(Tangle) - 0.55 * sinf(Tangle) + x_ - Tx + (-0.35) * sinf(Tangle) -
-                      0.55 * cosf(Tangle);
-        return true;
-    }
+// struct F5 {
+//     F5(double x, double y) : x_(x), y_(y) {}
+//     template <typename T>
+//     bool operator()(const T *const Tx, const T *const Ty, const T *const Tangle, T *residual) const {
+//         residual[0] = y_ - Ty[0] - 0.335 * cos(Tangle[0]) - (-0.17) * sin(Tangle[0]) + x_ - Tx[0] +
+//                       0.335 * sin(Tangle[0]) - (-0.17) * cos(Tangle[0]);
+//         return true;
+//     }
 
-private:
-    const double x_;
-    const double y_;
-};
+// private:
+//     const double x_;
+//     const double y_;
+// };
 
 class TransportBoxLocalizer {
 private:
@@ -127,10 +137,12 @@ private:
     ros::Publisher cloudPub;
     ros::Publisher laser_filtered_point_pub;
     ros::Publisher box_legs_array_pub;
+    ros::Publisher box_coordinate_pub;
     ros::Subscriber cloudSub;
 
-    double detect_up_, detect_down_, detect_right_, detect_left_, lidar_intensity_;
+    double detect_up_, detect_down_, detect_right_, detect_left_, lidar_intensity_, feature_dist_;
     double initial_x_, initial_y_, initial_angle_;
+    double iteration_x_, iteration_y_, iteration_angle_;
 
     vector<box_legs> box_legs_;
     vector<box_legs> cluster_box_legs_;
@@ -140,6 +152,11 @@ private:
     geometry_msgs::Pose box_legs_pose;
 
     unsigned it_since_initialized_;
+
+    // Create the marker positions from the test points
+    List4DPoints positions_of_markers_on_object;
+    List4DPoints positions_of_markers_box_leg;
+    actual_box_leg positions_of_actual_box_leg[5];
 
 public:
     TransportBoxLocalizer();

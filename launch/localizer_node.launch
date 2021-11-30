@@ -7,9 +7,9 @@
     <rosparam command="load" file="$(arg marker_positions_file)"/>
     <param name="pcd_filename"   type="string" value="$(find transport_box_loc)/launch/demo.pcd"  />
     
-    <param name="initial_x"      type="double" value= "0.7"  />
-    <param name="initial_y"      type="double" value= "0.0"  />
-    <param name="initial_angle"  type="double" value= "0.0"  />
+    <param name="initial_x"      type="double" value= "1.0"  />
+    <param name="initial_y"      type="double" value= "0.2"  />
+    <param name="initial_angle"  type="double" value= "0.05"  />
 
   </node>
 </launch>
