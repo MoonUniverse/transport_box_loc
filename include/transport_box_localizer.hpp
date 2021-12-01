@@ -18,6 +18,7 @@
 #include "geometry_msgs/PoseArray.h"
 #include "gflags/gflags.h"
 #include "glog/logging.h"
+#include "std_msgs/String.h"
 using Point = pcl::PointXYZ;
 using Pointcloud = pcl::PointCloud<Point>;
 
@@ -73,7 +74,7 @@ private:
     void runBehavior(void);
     void lidarpointcallback(const sensor_msgs::PointCloud2::ConstPtr &pointMsgIn);
     void estimateBodyPose(geometry_msgs::PoseArray num_legs);
-    // DP fromPCL(const Pointcloud &pcl);
+    void cmdcallback(const std_msgs::String::ConstPtr &msg);
 
     Pointcloud::Ptr mapCloud;
     std::thread *run_behavior_thread_;
@@ -83,6 +84,7 @@ private:
     ros::Publisher box_legs_array_pub;
     ros::Publisher box_coordinate_pub;
     ros::Subscriber cloudSub;
+    ros::Subscriber startSub;
 
     double detect_up_, detect_down_, detect_right_, detect_left_, lidar_intensity_, feature_dist_;
     double initial_x_, initial_y_, initial_angle_;

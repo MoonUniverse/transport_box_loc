@@ -42,12 +42,12 @@ TransportBoxLocalizer::TransportBoxLocalizer() : it_since_initialized_(0) {
     cloudPub = nh.advertise<sensor_msgs::PointCloud2>("icp_map", 10, true);
     laser_filtered_point_pub = nh.advertise<sensor_msgs::PointCloud2>("laser_filtered_point", 10);
     box_legs_array_pub = nh.advertise<geometry_msgs::PoseArray>("box_legs", 10);
-    box_coordinate_pub = nh.advertise<geometry_msgs::PoseStamped>("box_coordinate", 10);
+    box_coordinate_pub = nh.advertise<geometry_msgs::PoseStamped>("/taimi/waste_aruco_position", 10);
 
     // subscribe
     cloudSub = nh.subscribe<sensor_msgs::PointCloud2>(
         "/tim551_cloud", 10, boost::bind(&TransportBoxLocalizer::lidarpointcallback, this, _1));
-
+    startSub = nh.subscribe<std_msgs::String>("/shelf_lifter/cmd", 10, &TransportBoxLocalizer::cmdcallback, this);
     run_behavior_thread_ = new std::thread(std::bind(&TransportBoxLocalizer::runBehavior, this));
 }
 
@@ -361,6 +361,18 @@ void TransportBoxLocalizer::lidarpointcallback(const sensor_msgs::PointCloud2::C
     box_legs_.clear();
     cluster_box_legs_.clear();
     poseArray.poses.clear();
+}
+
+void TransportBoxLocalizer::cmdcallback(const std_msgs::String::ConstPtr &msg) {
+    if (!msg) {
+        return;
+    }
+    std_msgs::String cmd_str = *msg;
+
+    if (cmd_str.data.find("move_back") != std::string::npos) {
+        it_since_initialized_ = 0;
+        std::cout << "alignment start!" << std::endl;
+    }
 }
 
 TransportBoxLocalizer::~TransportBoxLocalizer() {}
