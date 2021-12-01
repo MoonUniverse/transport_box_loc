@@ -25,6 +25,7 @@ using namespace std;
 using namespace Eigen;
 
 using ceres::AutoDiffCostFunction;
+using ceres::CauchyLoss;
 using ceres::CostFunction;
 using ceres::Problem;
 using ceres::Solve;
@@ -53,8 +54,8 @@ struct F1 {
     F1(double x, double y, double a, double b) : x_(x), y_(y), a_(a), b_(b) {}
     template <typename T>
     bool operator()(const T *const Tx, const T *const Ty, const T *const Tangle, T *residual) const {
-        residual[0] = y_ - Ty[0] - b_ * cos(Tangle[0]) - a_ * sin(Tangle[0]) + x_ - Tx[0] + b_ * sin(Tangle[0]) -
-                      a_ * cos(Tangle[0]);
+        residual[0] = abs(y_ - Ty[0] - b_ * cos(Tangle[0]) - a_ * sin(Tangle[0])) +
+                      abs(x_ - Tx[0] + b_ * sin(Tangle[0]) - a_ * cos(Tangle[0]));
         return true;
     }
 
@@ -64,63 +65,6 @@ private:
     const double a_;
     const double b_;
 };
-
-// struct F2 {
-//     F2(double x, double y) : x_(x), y_(y) {}
-//     template <typename T>
-//     bool operator()(const T *const Tx, const T *const Ty, const T *const Tangle, T *residual) const {
-//         residual[0] = y_ - Ty[0] - (-0.335) * cos(Tangle[0]) - 0.33 * sin(Tangle[0]) + x_ - Tx[0] +
-//                       (-0.335) * sin(Tangle[0]) - 0.33 * cos(Tangle[0]);
-//         return true;
-//     }
-
-// private:
-//     const double x_;
-//     const double y_;
-// };
-
-// struct F3 {
-//     F3(double x, double y) : x_(x), y_(y) {}
-//     template <typename T>
-//     bool operator()(const T *const Tx, const T *const Ty, const T *const Tangle, T *residual) const {
-//         residual[0] = y_ - Ty[0] - 0.335 * cos(Tangle[0]) - 0.33 * sin(Tangle[0]) + x_ - Tx[0] +
-//                       0.335 * sin(Tangle[0]) - 0.33 * cos(Tangle[0]);
-//         return true;
-//     }
-
-// private:
-//     const double x_;
-//     const double y_;
-// };
-
-// struct F4 {
-//     F4(double x, double y) : x_(x), y_(y) {}
-//     template <typename T>
-//     bool operator()(const T *const Tx, const T *const Ty, const T *const Tangle, T *residual) const {
-//         residual[0] = y_ - Ty[0] - 0.335 * cos(Tangle[0]) - 0.0 * sin(Tangle[0]) + x_ - Tx[0] + 0.335 *
-//         sin(Tangle[0]) -
-//                       0.0 * cos(Tangle[0]);
-//         return true;
-//     }
-
-// private:
-//     const double x_;
-//     const double y_;
-// };
-
-// struct F5 {
-//     F5(double x, double y) : x_(x), y_(y) {}
-//     template <typename T>
-//     bool operator()(const T *const Tx, const T *const Ty, const T *const Tangle, T *residual) const {
-//         residual[0] = y_ - Ty[0] - 0.335 * cos(Tangle[0]) - (-0.17) * sin(Tangle[0]) + x_ - Tx[0] +
-//                       0.335 * sin(Tangle[0]) - (-0.17) * cos(Tangle[0]);
-//         return true;
-//     }
-
-// private:
-//     const double x_;
-//     const double y_;
-// };
 
 class TransportBoxLocalizer {
 private:

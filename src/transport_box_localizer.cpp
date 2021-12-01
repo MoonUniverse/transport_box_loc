@@ -79,7 +79,7 @@ void TransportBoxLocalizer::runBehavior(void) {
 
 void TransportBoxLocalizer::estimateBodyPose(geometry_msgs::PoseArray num_legs) {
     // num legs too little
-    if (num_legs.poses.size() < 5) {
+    if (num_legs.poses.size() < 3) {
         return;
     }
 
@@ -161,11 +161,10 @@ void TransportBoxLocalizer::estimateBodyPose(geometry_msgs::PoseArray num_legs) 
             CostFunction *cost_function = new AutoDiffCostFunction<F1, 1, 1, 1, 1>(
                 new F1(positions_of_actual_box_leg[i].x, positions_of_actual_box_leg[i].y,
                        positions_of_markers_on_object(i)(0), positions_of_markers_on_object(i)(1)));
-            problem.AddResidualBlock(cost_function, nullptr, &initial_x_, &initial_y_, &initial_angle_);
+            problem.AddResidualBlock(cost_function, new CauchyLoss(0.5), &initial_x_, &initial_y_, &initial_angle_);
         }
 
         Solver::Options options;
-        options.max_num_iterations = 100;
         options.linear_solver_type = ceres::DENSE_QR;
         options.minimizer_progress_to_stdout = true;
 
@@ -195,114 +194,70 @@ void TransportBoxLocalizer::estimateBodyPose(geometry_msgs::PoseArray num_legs) 
 
         box_coordinate_pub.publish(box_coordinate);
 
-        // CostFunction *F1_cost_function = new AutoDiffCostFunction<F1, 1, 1, 1, 1>(
-        //     new F1(positions_of_actual_box_leg[0].x, positions_of_actual_box_leg[0].y));
-        // problem.AddResidualBlock(F1_cost_function, NULL, &initial_x_, &initial_y_, &initial_angle_);
-        // CostFunction *F2_cost_function = new AutoDiffCostFunction<F2, 1, 1, 1, 1>(
-        //     new F2(positions_of_actual_box_leg[1].x, positions_of_actual_box_leg[1].y));
-        // problem.AddResidualBlock(F2_cost_function, NULL, &initial_x_, &initial_y_, &initial_angle_);
-        // CostFunction *F3_cost_function = new AutoDiffCostFunction<F3, 1, 1, 1, 1>(
-        //     new F3(positions_of_actual_box_leg[2].x, positions_of_actual_box_leg[2].y));
-        // problem.AddResidualBlock(F3_cost_function, NULL, &initial_x_, &initial_y_, &initial_angle_);
-        // // CostFunction *F4_cost_function = new AutoDiffCostFunction<F4, 1, 1, 1, 1>(
-        // //     new F4(num_legs.poses[3].position.x, num_legs.poses[3].position.y));
-        // // problem.AddResidualBlock(F4_cost_function, NULL, &initial_x_, &initial_y_, &initial_angle_);
-        // CostFunction *F5_cost_function = new AutoDiffCostFunction<F5, 1, 1, 1, 1>(
-        //     new F5(positions_of_actual_box_leg[4].x, positions_of_actual_box_leg[4].y));
-        // problem.AddResidualBlock(F5_cost_function, NULL, &initial_x_, &initial_y_, &initial_angle_);
-
-        // Solver::Options options;
-        // options.max_num_iterations = 100;
-        // options.linear_solver_type = ceres::DENSE_QR;
-        // options.minimizer_progress_to_stdout = true;
-
-        // std::cout << "Initial x = " << initial_x_ << ", y = " << initial_y_ << ", angle = " << initial_angle_ <<
-        // "\n"; Solver::Summary summary; ceres::Solve(options, &problem, &summary);
-
-        // std::cout << summary.FullReport() << "\n";
-
-        // iteration_x_ = initial_x_;
-        // iteration_y_ = initial_y_;
-        // iteration_angle_ = initial_angle_;
-        // std::cout << "Final   x: " << initial_x_ << " y: " << initial_y_ << " angle = " << initial_angle_ << "\n";
-        // geometry_msgs::PoseStamped box_coordinate;
-
-        // box_coordinate.header.frame_id = "laser_sick_tim551";
-        // box_coordinate.header.stamp = ros::Time::now();
-
-        // box_coordinate.pose.position.x = initial_x_;
-        // box_coordinate.pose.position.y = initial_y_;
-        // tf::Quaternion quat;
-        // quat = tf::createQuaternionFromYaw(initial_angle_);
-        // box_coordinate.pose.orientation.w = quat.getW();
-        // box_coordinate.pose.orientation.x = quat.getX();
-        // box_coordinate.pose.orientation.y = quat.getY();
-        // box_coordinate.pose.orientation.z = quat.getZ();
-
-        // box_coordinate_pub.publish(box_coordinate);
     } else {
-        // // processing point
-        // positions_of_markers_box_leg.resize(positions_of_markers_on_object.size());
-        // for (int i = 0; i < positions_of_markers_on_object.size(); i++) {
-        //     Eigen::Matrix<double, 4, 1> initialized_box_legs;
-        //     initialized_box_legs(0) = positions_of_markers_on_object(i)(0) * cos(iteration_angle_) -
-        //                               positions_of_markers_on_object(i)(1) * sin(iteration_angle_) + iteration_x_;
-        //     initialized_box_legs(1) = positions_of_markers_on_object(i)(0) * sin(iteration_angle_) +
-        //                               positions_of_markers_on_object(i)(1) * cos(iteration_angle_) + iteration_y_;
-        //     initialized_box_legs(2) = positions_of_markers_on_object(i)(2);
-        //     initialized_box_legs(3) = positions_of_markers_on_object(i)(3);
+        // processing point
+        positions_of_markers_box_leg.resize(positions_of_markers_on_object.size());
+        for (int i = 0; i < positions_of_markers_on_object.size(); i++) {
+            Eigen::Matrix<double, 4, 1> initialized_box_legs;
+            initialized_box_legs(0) = positions_of_markers_on_object(i)(0) * cos(iteration_angle_) -
+                                      positions_of_markers_on_object(i)(1) * sin(iteration_angle_) + iteration_x_;
+            initialized_box_legs(1) = positions_of_markers_on_object(i)(0) * sin(iteration_angle_) +
+                                      positions_of_markers_on_object(i)(1) * cos(iteration_angle_) + iteration_y_;
+            initialized_box_legs(2) = positions_of_markers_on_object(i)(2);
+            initialized_box_legs(3) = positions_of_markers_on_object(i)(3);
 
-        //     positions_of_markers_box_leg(i) = initialized_box_legs;
-        // }
+            positions_of_markers_box_leg(i) = initialized_box_legs;
+        }
 
-        // for (int i = 0; i < 3; i++) {
-        //     for (int j = 0; j < num_legs.poses.size(); j++) {
-        //         double error = hypot((positions_of_markers_box_leg(i)(0) - num_legs.poses[j].position.x),
-        //                              (positions_of_markers_box_leg(i)(1) - num_legs.poses[j].position.y));
-        //         if (error < 0.3) {
-        //             positions_of_actual_box_leg[i].x = num_legs.poses[j].position.x;
-        //             positions_of_actual_box_leg[i].y = num_legs.poses[j].position.y;
-        //             break;
-        //         }
-        //     }
-        // }
-        // for (int j = 0; j < num_legs.poses.size(); j++) {
-        //     double error = hypot((positions_of_markers_box_leg(4)(0) - num_legs.poses[j].position.x),
-        //                          (positions_of_markers_box_leg(4)(1) - num_legs.poses[j].position.y));
-        //     if (error < 0.3) {
-        //         positions_of_actual_box_leg[4].x = num_legs.poses[j].position.x;
-        //         positions_of_actual_box_leg[4].y = num_legs.poses[j].position.y;
-        //         break;
-        //     }
-        // }
+        for (int i = 0; i < 5; i++) {
+            for (int j = 0; j < num_legs.poses.size(); j++) {
+                double error = hypot((positions_of_markers_box_leg(i)(0) - num_legs.poses[j].position.x),
+                                     (positions_of_markers_box_leg(i)(1) - num_legs.poses[j].position.y));
+                if (error < 0.1) {
+                    positions_of_actual_box_leg[i].x = num_legs.poses[j].position.x;
+                    positions_of_actual_box_leg[i].y = num_legs.poses[j].position.y;
+                    break;
+                }
+            }
+        }
+        // debug
+        for (int i = 0; i < 5; i++) {
+            ROS_ERROR("positions_of_actual_box_leg.x:%f,positions_of_actual_box_leg_y:%f",
+                      positions_of_actual_box_leg[i].x, positions_of_actual_box_leg[i].y);
+        }
 
-        // Problem problem;
+        Problem problem;
+        for (int i = 0; i < 5; ++i) {
+            CostFunction *cost_function = new AutoDiffCostFunction<F1, 1, 1, 1, 1>(
+                new F1(positions_of_actual_box_leg[i].x, positions_of_actual_box_leg[i].y,
+                       positions_of_markers_on_object(i)(0), positions_of_markers_on_object(i)(1)));
+            problem.AddResidualBlock(cost_function, new CauchyLoss(0.5), &iteration_x_, &iteration_y_,
+                                     &iteration_angle_);
+        }
 
-        // CostFunction *F1_cost_function = new AutoDiffCostFunction<F1, 1, 1, 1, 1>(
-        //     new F1(positions_of_actual_box_leg[0].x, positions_of_actual_box_leg[0].y));
-        // problem.AddResidualBlock(F1_cost_function, NULL, &iteration_x_, &iteration_y_, &iteration_angle_);
-        // CostFunction *F2_cost_function = new AutoDiffCostFunction<F2, 1, 1, 1, 1>(
-        //     new F2(positions_of_actual_box_leg[1].x, positions_of_actual_box_leg[1].y));
-        // problem.AddResidualBlock(F2_cost_function, NULL, &iteration_x_, &iteration_y_, &iteration_angle_);
-        // CostFunction *F3_cost_function = new AutoDiffCostFunction<F3, 1, 1, 1, 1>(
-        //     new F3(positions_of_actual_box_leg[2].x, positions_of_actual_box_leg[2].y));
-        // problem.AddResidualBlock(F3_cost_function, NULL, &iteration_x_, &iteration_y_, &iteration_angle_);
-        // // CostFunction *F4_cost_function = new AutoDiffCostFunction<F4, 1, 1, 1, 1>(
-        // //     new F4(num_legs.poses[3].position.x, num_legs.poses[3].position.y));
-        // // problem.AddResidualBlock(F4_cost_function, NULL, &iteration_x_, &iteration_y_, &iteration_angle_);
-        // CostFunction *F5_cost_function = new AutoDiffCostFunction<F5, 1, 1, 1, 1>(
-        //     new F5(positions_of_actual_box_leg[4].x, positions_of_actual_box_leg[4].y));
-        // problem.AddResidualBlock(F5_cost_function, NULL, &iteration_x_, &iteration_y_, &iteration_angle_);
+        Solver::Options options;
+        options.linear_solver_type = ceres::DENSE_QR;
+        options.minimizer_progress_to_stdout = true;
 
-        // Solver::Options options;
-        // options.max_num_iterations = 100;
-        // options.linear_solver_type = ceres::DENSE_QR;
-        // options.minimizer_progress_to_stdout = true;
+        Solver::Summary summary;
+        ceres::Solve(options, &problem, &summary);
 
-        // Solver::Summary summary;
-        // ceres::Solve(options, &problem, &summary);
-        // std::cout << "Final   x: " << iteration_x_ << " y: " << iteration_y_ << " angle = " << iteration_angle_ <<
-        // "\n";
+        std::cout << "Final   x: " << iteration_x_ << " y: " << iteration_y_ << " angle = " << iteration_angle_ << "\n";
+        geometry_msgs::PoseStamped box_coordinate;
+
+        box_coordinate.header.frame_id = "laser_sick_tim551";
+        box_coordinate.header.stamp = ros::Time::now();
+
+        box_coordinate.pose.position.x = iteration_x_;
+        box_coordinate.pose.position.y = iteration_y_;
+        tf::Quaternion quat;
+        quat = tf::createQuaternionFromYaw(iteration_angle_);
+        box_coordinate.pose.orientation.w = quat.getW();
+        box_coordinate.pose.orientation.x = quat.getX();
+        box_coordinate.pose.orientation.y = quat.getY();
+        box_coordinate.pose.orientation.z = quat.getZ();
+
+        box_coordinate_pub.publish(box_coordinate);
     }
 }
 
