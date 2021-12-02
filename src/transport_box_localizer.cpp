@@ -4,8 +4,6 @@ using ceres::Problem;
 namespace transport_box_localizer {
 TransportBoxLocalizer::TransportBoxLocalizer() : it_since_initialized_(0) {
     ros::NodeHandle nh("~");
-    const std::string pclFilename = nh.param<std::string>("pcd_filename", "");
-    mapCloud = loadPointcloudFromPcd(pclFilename);
 
     nh.param("detect_up", detect_up_, 2.0);
     nh.param("detect_down", detect_down_, -1.0);
@@ -51,14 +49,6 @@ TransportBoxLocalizer::TransportBoxLocalizer() : it_since_initialized_(0) {
     run_behavior_thread_ = new std::thread(std::bind(&TransportBoxLocalizer::runBehavior, this));
 }
 
-Pointcloud::Ptr TransportBoxLocalizer::loadPointcloudFromPcd(const std::string &filename) {
-    Pointcloud::Ptr cloud(new Pointcloud);
-    pcl::PCLPointCloud2 cloudBlob;
-    pcl::io::loadPCDFile(filename, cloudBlob);
-    pcl::fromPCLPointCloud2(cloudBlob, *cloud);
-    return cloud;
-}
-
 void TransportBoxLocalizer::publishCloud(Pointcloud::Ptr cloud, const ros::Publisher &pub, const std::string &frameId) {
     cloud->header.frame_id = frameId;
     cloud->header.seq = 0;
@@ -77,15 +67,13 @@ void TransportBoxLocalizer::runBehavior(void) {
     }
 }
 
-void TransportBoxLocalizer::estimateBodyPose(geometry_msgs::PoseArray num_legs) {
+void TransportBoxLocalizer::estimateBodyPose(vector<box_legs> num_legs) {
     // num legs too little
-    if (num_legs.poses.size() < 3) {
+    if (num_legs.size() < 5) {
         return;
     }
-
     if (it_since_initialized_ < 1) {
         it_since_initialized_++;
-
         // processing point
         positions_of_markers_box_leg.resize(positions_of_markers_on_object.size());
         for (int i = 0; i < positions_of_markers_on_object.size(); i++) {
@@ -99,68 +87,30 @@ void TransportBoxLocalizer::estimateBodyPose(geometry_msgs::PoseArray num_legs) 
 
             positions_of_markers_box_leg(i) = initialized_box_legs;
         }
-        // feature loc
-        for (int i = 0; i < num_legs.poses.size() - 1; i++) {
-            for (int j = i + 1; j < num_legs.poses.size(); j++) {
-                double feature_distance = hypot((num_legs.poses[i].position.x - num_legs.poses[j].position.x),
-                                                (num_legs.poses[i].position.y - num_legs.poses[j].position.y));
-
-                if (fabs(feature_distance - feature_dist_) < 0.05) {
-                    double feature_center[2], markers_box_feature_center[2];
-                    feature_center[0] = (num_legs.poses[i].position.x + num_legs.poses[j].position.x) / 2;
-                    feature_center[1] = (num_legs.poses[i].position.y + num_legs.poses[j].position.y) / 2;
-                    markers_box_feature_center[0] =
-                        (positions_of_markers_box_leg(3)(0) + positions_of_markers_box_leg(4)(0)) / 2;
-                    markers_box_feature_center[1] =
-                        (positions_of_markers_box_leg(3)(1) + positions_of_markers_box_leg(4)(1)) / 2;
-
-                    double error = hypot((markers_box_feature_center[0] - feature_center[0]),
-                                         (markers_box_feature_center[1] - feature_center[1]));
-                    if (error < 0.3) {
-                        if (hypot(num_legs.poses[i].position.x, num_legs.poses[i].position.y) <
-                            hypot(num_legs.poses[j].position.x, num_legs.poses[j].position.y)) {
-                            positions_of_actual_box_leg[4].x = num_legs.poses[i].position.x;
-                            positions_of_actual_box_leg[4].y = num_legs.poses[i].position.y;
-                            positions_of_actual_box_leg[3].x = num_legs.poses[j].position.x;
-                            positions_of_actual_box_leg[3].y = num_legs.poses[j].position.y;
-
-                        } else {
-                            positions_of_actual_box_leg[4].x = num_legs.poses[j].position.x;
-                            positions_of_actual_box_leg[4].y = num_legs.poses[j].position.y;
-                            positions_of_actual_box_leg[3].x = num_legs.poses[i].position.x;
-                            positions_of_actual_box_leg[3].y = num_legs.poses[i].position.y;
-                        }
-                        ROS_INFO("positions_of_actual_box_leg[4].x: %f, positions_of_actual_box_leg[4].y: %f",
-                                 positions_of_actual_box_leg[4].x, positions_of_actual_box_leg[4].y);
-                        break;
-                    }
+        for (int i = 0; i < positions_of_markers_box_leg.size(); i++) {
+            for (int j = 0; j < num_legs.size(); j++) {
+                input_data point_legs_input;
+                if (sqrt((pow(positions_of_markers_box_leg(i)(0) - num_legs[j].xy_coordinates[0], 2) +
+                          pow(positions_of_markers_box_leg(i)(1) - num_legs[j].xy_coordinates[1], 2))) < 0.15) {
+                    point_legs_input.a = positions_of_markers_on_object(i)(0);
+                    point_legs_input.b = positions_of_markers_on_object(i)(1);
+                    point_legs_input.x = num_legs[j].xy_coordinates[0];
+                    point_legs_input.y = num_legs[j].xy_coordinates[1];
+                    point_legs_correspond.push_back(point_legs_input);
                 }
             }
         }
 
-        for (int i = 0; i < 3; i++) {
-            for (int j = 0; j < num_legs.poses.size(); j++) {
-                double error = hypot((positions_of_markers_box_leg(i)(0) - num_legs.poses[j].position.x),
-                                     (positions_of_markers_box_leg(i)(1) - num_legs.poses[j].position.y));
-                if (error < 0.2) {
-                    positions_of_actual_box_leg[i].x = num_legs.poses[j].position.x;
-                    positions_of_actual_box_leg[i].y = num_legs.poses[j].position.y;
-                    break;
-                }
-                ROS_ERROR("error: %f", error);
-            }
-        }
-        // debug
-        for (int i = 0; i < 5; i++) {
-            ROS_ERROR("positions_of_actual_box_leg.x:%f,positions_of_actual_box_leg_y:%f",
-                      positions_of_actual_box_leg[i].x, positions_of_actual_box_leg[i].y);
+        for (int i = 0; i < point_legs_correspond.size(); i++) {
+            ROS_ERROR("a:%f,b:%f,x:%f,y:%f", point_legs_correspond[i].a, point_legs_correspond[i].b,
+                      point_legs_correspond[i].x, point_legs_correspond[i].y);
         }
 
         Problem problem;
-        for (int i = 0; i < 5; ++i) {
+        for (int i = 0; i < point_legs_correspond.size(); ++i) {
             CostFunction *cost_function = new AutoDiffCostFunction<F1, 1, 1, 1, 1>(
-                new F1(positions_of_actual_box_leg[i].x, positions_of_actual_box_leg[i].y,
-                       positions_of_markers_on_object(i)(0), positions_of_markers_on_object(i)(1)));
+                new F1(point_legs_correspond[i].x, point_legs_correspond[i].y, point_legs_correspond[i].a,
+                       point_legs_correspond[i].b));
             problem.AddResidualBlock(cost_function, new CauchyLoss(0.5), &initial_x_, &initial_y_, &initial_angle_);
         }
 
@@ -193,7 +143,6 @@ void TransportBoxLocalizer::estimateBodyPose(geometry_msgs::PoseArray num_legs) 
         box_coordinate.pose.orientation.z = quat.getZ();
 
         box_coordinate_pub.publish(box_coordinate);
-
     } else {
         // processing point
         positions_of_markers_box_leg.resize(positions_of_markers_on_object.size());
@@ -209,32 +158,27 @@ void TransportBoxLocalizer::estimateBodyPose(geometry_msgs::PoseArray num_legs) 
             positions_of_markers_box_leg(i) = initialized_box_legs;
         }
 
-        for (int i = 0; i < 5; i++) {
-            for (int j = 0; j < num_legs.poses.size(); j++) {
-                double error = hypot((positions_of_markers_box_leg(i)(0) - num_legs.poses[j].position.x),
-                                     (positions_of_markers_box_leg(i)(1) - num_legs.poses[j].position.y));
-                if (error < 0.1) {
-                    positions_of_actual_box_leg[i].x = num_legs.poses[j].position.x;
-                    positions_of_actual_box_leg[i].y = num_legs.poses[j].position.y;
-                    break;
+        for (int i = 0; i < positions_of_markers_box_leg.size(); i++) {
+            for (int j = 0; j < num_legs.size(); j++) {
+                input_data point_legs_input;
+                if (sqrt((pow(positions_of_markers_box_leg(i)(0) - num_legs[j].xy_coordinates[0], 2) +
+                          pow(positions_of_markers_box_leg(i)(1) - num_legs[j].xy_coordinates[1], 2))) < 0.1) {
+                    point_legs_input.a = positions_of_markers_on_object(i)(0);
+                    point_legs_input.b = positions_of_markers_on_object(i)(1);
+                    point_legs_input.x = num_legs[j].xy_coordinates[0];
+                    point_legs_input.y = num_legs[j].xy_coordinates[1];
+                    point_legs_correspond.push_back(point_legs_input);
                 }
             }
         }
-        // debug
-        for (int i = 0; i < 5; i++) {
-            ROS_ERROR("positions_of_actual_box_leg.x:%f,positions_of_actual_box_leg_y:%f",
-                      positions_of_actual_box_leg[i].x, positions_of_actual_box_leg[i].y);
-        }
-
         Problem problem;
-        for (int i = 0; i < 5; ++i) {
+        for (int i = 0; i < point_legs_correspond.size(); ++i) {
             CostFunction *cost_function = new AutoDiffCostFunction<F1, 1, 1, 1, 1>(
-                new F1(positions_of_actual_box_leg[i].x, positions_of_actual_box_leg[i].y,
-                       positions_of_markers_on_object(i)(0), positions_of_markers_on_object(i)(1)));
+                new F1(point_legs_correspond[i].x, point_legs_correspond[i].y, point_legs_correspond[i].a,
+                       point_legs_correspond[i].b));
             problem.AddResidualBlock(cost_function, new CauchyLoss(0.5), &iteration_x_, &iteration_y_,
                                      &iteration_angle_);
         }
-
         Solver::Options options;
         options.linear_solver_type = ceres::DENSE_QR;
         options.minimizer_progress_to_stdout = true;
@@ -302,63 +246,16 @@ void TransportBoxLocalizer::lidarpointcallback(const sensor_msgs::PointCloud2::C
     for (int i = 0; i < filtered_point.row_step; i++) {
         filtered_point.data.push_back(tmp_data[i]);
     }
-    ROS_DEBUG("point_count: %d", point_count);
+    ROS_INFO("point_count: %d", point_count);
     laser_filtered_point_pub.publish(filtered_point);
 
-    float sum_x_pos = 0, sum_y_pos = 0;
-    uint32_t classify_number = 0;
-    box_legs cluster_box_legs_coordinates;
-    bool classify_flag = false;
-    for (int i = 0; i < box_legs_.size() - 1; i++) {
-        if (pow(pow(box_legs_[i].xy_coordinates[0] - box_legs_[i + 1].xy_coordinates[0], 2) +
-                    pow(box_legs_[i].xy_coordinates[1] - box_legs_[i + 1].xy_coordinates[1], 2),
-                0.5) < 0.05) {
-            sum_x_pos += box_legs_[i].xy_coordinates[0];
-            sum_y_pos += box_legs_[i].xy_coordinates[1];
-            classify_number++;
-            classify_flag = false;
-        } else {
-            if (classify_number >= 3) {
-                cluster_box_legs_coordinates.xy_coordinates[0] = sum_x_pos / classify_number;
-                cluster_box_legs_coordinates.xy_coordinates[1] = sum_y_pos / classify_number;
-
-                cluster_box_legs_.push_back(cluster_box_legs_coordinates);
-
-                box_legs_pose.position.x = cluster_box_legs_coordinates.xy_coordinates[0];
-                box_legs_pose.position.y = cluster_box_legs_coordinates.xy_coordinates[1];
-                box_legs_pose.position.z = 0;
-                poseArray.poses.push_back(box_legs_pose);
-            }
-            classify_number = 0;
-            sum_x_pos = 0;
-            sum_y_pos = 0;
-            classify_flag = true;
-        }
-    }
-    if (!classify_flag && classify_number >= 3) {
-        cluster_box_legs_coordinates.xy_coordinates[0] = sum_x_pos / classify_number;
-        cluster_box_legs_coordinates.xy_coordinates[1] = sum_y_pos / classify_number;
-
-        cluster_box_legs_.push_back(cluster_box_legs_coordinates);
-
-        box_legs_pose.position.x = cluster_box_legs_coordinates.xy_coordinates[0];
-        box_legs_pose.position.y = cluster_box_legs_coordinates.xy_coordinates[1];
-        box_legs_pose.position.z = 0;
-        poseArray.poses.push_back(box_legs_pose);
-    }
-    poseArray.header = pointMsgIn->header;
-    poseArray.header.stamp = ros::Time::now();
-    box_legs_array_pub.publish(poseArray);
-
-    for (int i = 0; i < cluster_box_legs_.size(); i++) {
-        ROS_INFO("cluster_box_legs_.xy_coordinates[0]:%f,cluster_box_legs_.box_legs.xy_coordinates[1]:%f",
-                 cluster_box_legs_[i].xy_coordinates[0], cluster_box_legs_[i].xy_coordinates[1]);
-    }
     ROS_INFO("\r\n");
 
-    estimateBodyPose(poseArray);
+    estimateBodyPose(box_legs_);
 
+    tmp_data.clear();
     box_legs_.clear();
+    point_legs_correspond.clear();
     cluster_box_legs_.clear();
     poseArray.poses.clear();
 }

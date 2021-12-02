@@ -8,6 +8,7 @@ Panels:
         - /Status1
         - /Pose1
         - /Axes1
+        - /Pose2
       Splitter Ratio: 0.5
     Tree Height: 549
   - Class: rviz/Selection
@@ -179,6 +180,22 @@ Visualization Manager:
       Radius: 0.05000000074505806
       Reference Frame: laser_sick_tim551
       Value: true
+    - Alpha: 1
+      Axes Length: 0.15000000596046448
+      Axes Radius: 0.05000000074505806
+      Class: rviz/Pose
+      Color: 255; 25; 0
+      Enabled: true
+      Head Length: 0.30000001192092896
+      Head Radius: 0.10000000149011612
+      Name: Pose
+      Queue Size: 10
+      Shaft Length: 1
+      Shaft Radius: 0.05000000074505806
+      Shape: Axes
+      Topic: /taimi/waste_aruco_position
+      Unreliable: false
+      Value: true
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
@@ -216,7 +233,7 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Scale: 329.8245544433594
+      Scale: 218.3395538330078
       Target Frame: <Fixed Frame>
       X: 0.5936324000358582
       Y: 0.1098162829875946
@@ -237,5 +254,5 @@ Window Geometry:
   Views:
     collapsed: true
   Width: 1267
-  X: 382
-  Y: 404
+  X: 1252
+  Y: 27

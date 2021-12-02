@@ -42,7 +42,7 @@ typedef union {
 } float_union;
 
 typedef struct {
-    float xy_coordinates[2];
+    double xy_coordinates[2];
 } box_legs;
 
 typedef struct {
@@ -50,6 +50,19 @@ typedef struct {
     double y;
     double z;
 } actual_box_leg;
+
+typedef struct {
+    double x;
+    double y;
+    double a;
+    double b;
+} input_data;
+
+typedef struct {
+    double x;
+    double y;
+    unsigned char number;
+} box_leg_point;
 
 struct F1 {
     F1(double x, double y, double a, double b) : x_(x), y_(y), a_(a), b_(b) {}
@@ -69,14 +82,12 @@ private:
 
 class TransportBoxLocalizer {
 private:
-    Pointcloud::Ptr loadPointcloudFromPcd(const std::string &filename);
     void publishCloud(Pointcloud::Ptr cloud, const ros::Publisher &pub, const std::string &frameId);
     void runBehavior(void);
     void lidarpointcallback(const sensor_msgs::PointCloud2::ConstPtr &pointMsgIn);
-    void estimateBodyPose(geometry_msgs::PoseArray num_legs);
+    void estimateBodyPose(vector<box_legs> num_legs);
     void cmdcallback(const std_msgs::String::ConstPtr &msg);
 
-    Pointcloud::Ptr mapCloud;
     std::thread *run_behavior_thread_;
 
     ros::Publisher cloudPub;
@@ -92,6 +103,7 @@ private:
 
     vector<box_legs> box_legs_;
     vector<box_legs> cluster_box_legs_;
+    vector<input_data> point_legs_correspond;
 
     // Debug
     geometry_msgs::PoseArray poseArray;
