@@ -49,6 +49,10 @@ typedef struct {
 typedef struct {
     double x;
     double y;
+} cluster_cloudpoint;
+typedef struct {
+    double x;
+    double y;
     double a;
     double b;
 } ceres_input;
@@ -74,6 +78,7 @@ private:
     void publishCloud(Pointcloud::Ptr cloud, const ros::Publisher &pub, const std::string &frameId);
     void runBehavior(void);
     void lidarpointcallback(const sensor_msgs::PointCloud2::ConstPtr &pointMsgIn);
+    void estimateInitalPose(vector<filter_cloudpoint> cloudpointMsg);
     void estimateBodyPose(vector<filter_cloudpoint> cloudpointMsg);
     void cmdcallback(const std_msgs::String::ConstPtr &msg);
 
@@ -93,8 +98,10 @@ private:
     double iteration_x_, iteration_y_, iteration_angle_;
 
     vector<filter_cloudpoint> filter_cloudpoint_;
-    vector<filter_cloudpoint> cluster_box_legs_;
+    vector<cluster_cloudpoint> cluster_cloudpoint_;
     vector<ceres_input> point_legs_correspond_;
+
+    cluster_cloudpoint initial_point_[2];
 
     // Debug
     geometry_msgs::PoseArray poseArray;
