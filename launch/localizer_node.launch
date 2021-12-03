@@ -10,12 +10,15 @@
     <param name="detect_down"     type="double" value= "-1.0"  />
     <param name="detect_right"    type="double" value= "1.5"  />    
     <param name="detect_left"     type="double" value= "1.5"  />
-    <param name="lidar_intensity" type="double" value= "25000.0"  /> 
+    <param name="lidar_intensity" type="double" value= "32500.0"  /> 
     <param name="feature_dist"    type="double" value= "0.15"  /> 
     
-    <param name="initial_x"      type="double" value= "0.7"  />
-    <param name="initial_y"      type="double" value= "0.0"  />
-    <param name="initial_angle"  type="double" value= "0.0"  />
+    <param name="initial_x"       type="double" value= "0.7"  />
+    <param name="initial_y"       type="double" value= "0.0"  />
+    <param name="initial_angle"   type="double" value= "0.0"  />
+
+    <param name="inflation_coefficient"  type="double" value= "0.005"  />
+    <param name="inflation_number"       type="int" value= "5"  />  <!-- 1,3,5,7,9  -->
 
   </node>
 </launch>

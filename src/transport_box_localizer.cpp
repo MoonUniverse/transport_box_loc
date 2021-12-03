@@ -1,6 +1,5 @@
 #include "transport_box_localizer.hpp"
 
-using ceres::Problem;
 namespace transport_box_localizer {
 TransportBoxLocalizer::TransportBoxLocalizer() : it_since_initialized_(0) {
     ros::NodeHandle nh("~");
@@ -9,11 +8,14 @@ TransportBoxLocalizer::TransportBoxLocalizer() : it_since_initialized_(0) {
     nh.param("detect_down", detect_down_, -1.0);
     nh.param("detect_right", detect_right_, 1.0);
     nh.param("detect_left", detect_left_, 1.0);
-    nh.param("lidar_intensity", lidar_intensity_, 35000.0);
+    nh.param("lidar_intensity", lidar_intensity_, 30000.0);
     nh.param("feature_dist", feature_dist_, 0.15);
     nh.param("initial_x", initial_x_, 0.7);
     nh.param("initial_y", initial_y_, 0.0);
     nh.param("initial_angle", initial_angle_, 0.0);
+
+    nh.param("inflation_coefficient", inflation_coefficient_, 0.005);
+    nh.param("inflation_number", inflation_number_, 5);
 
     // Read in the marker positions from the YAML parameter file
     XmlRpc::XmlRpcValue points_list;
@@ -62,14 +64,13 @@ void TransportBoxLocalizer::runBehavior(void) {
     ros::NodeHandle nh;
     ros::Rate rate(10.0);
     while (nh.ok()) {
-        // publishCloud(mapCloud, cloudPub, "laser_sick_tim551");
         rate.sleep();
     }
 }
 
-void TransportBoxLocalizer::estimateBodyPose(vector<box_legs> num_legs) {
+void TransportBoxLocalizer::estimateBodyPose(vector<filter_cloudpoint> cloudpointMsg) {
     // num legs too little
-    if (num_legs.size() < 5) {
+    if (cloudpointMsg.size() < 15) {
         return;
     }
     if (it_since_initialized_ < 1) {
@@ -88,29 +89,29 @@ void TransportBoxLocalizer::estimateBodyPose(vector<box_legs> num_legs) {
             positions_of_markers_box_leg(i) = initialized_box_legs;
         }
         for (int i = 0; i < positions_of_markers_box_leg.size(); i++) {
-            for (int j = 0; j < num_legs.size(); j++) {
-                input_data point_legs_input;
-                if (sqrt((pow(positions_of_markers_box_leg(i)(0) - num_legs[j].xy_coordinates[0], 2) +
-                          pow(positions_of_markers_box_leg(i)(1) - num_legs[j].xy_coordinates[1], 2))) < 0.15) {
+            for (int j = 0; j < cloudpointMsg.size(); j++) {
+                ceres_input point_legs_input;
+                if (sqrt((pow(positions_of_markers_box_leg(i)(0) - cloudpointMsg[j].x, 2) +
+                          pow(positions_of_markers_box_leg(i)(1) - cloudpointMsg[j].y, 2))) < 0.15) {
                     point_legs_input.a = positions_of_markers_on_object(i)(0);
                     point_legs_input.b = positions_of_markers_on_object(i)(1);
-                    point_legs_input.x = num_legs[j].xy_coordinates[0];
-                    point_legs_input.y = num_legs[j].xy_coordinates[1];
-                    point_legs_correspond.push_back(point_legs_input);
+                    point_legs_input.x = cloudpointMsg[j].x;
+                    point_legs_input.y = cloudpointMsg[j].y;
+                    point_legs_correspond_.push_back(point_legs_input);
                 }
             }
         }
 
-        for (int i = 0; i < point_legs_correspond.size(); i++) {
-            ROS_ERROR("a:%f,b:%f,x:%f,y:%f", point_legs_correspond[i].a, point_legs_correspond[i].b,
-                      point_legs_correspond[i].x, point_legs_correspond[i].y);
+        for (int i = 0; i < point_legs_correspond_.size(); i++) {
+            ROS_ERROR("a:%f,b:%f,x:%f,y:%f", point_legs_correspond_[i].a, point_legs_correspond_[i].b,
+                      point_legs_correspond_[i].x, point_legs_correspond_[i].y);
         }
 
         Problem problem;
-        for (int i = 0; i < point_legs_correspond.size(); ++i) {
+        for (int i = 0; i < point_legs_correspond_.size(); ++i) {
             CostFunction *cost_function = new AutoDiffCostFunction<F1, 1, 1, 1, 1>(
-                new F1(point_legs_correspond[i].x, point_legs_correspond[i].y, point_legs_correspond[i].a,
-                       point_legs_correspond[i].b));
+                new F1(point_legs_correspond_[i].x, point_legs_correspond_[i].y, point_legs_correspond_[i].a,
+                       point_legs_correspond_[i].b));
             problem.AddResidualBlock(cost_function, new CauchyLoss(0.5), &initial_x_, &initial_y_, &initial_angle_);
         }
 
@@ -159,23 +160,23 @@ void TransportBoxLocalizer::estimateBodyPose(vector<box_legs> num_legs) {
         }
 
         for (int i = 0; i < positions_of_markers_box_leg.size(); i++) {
-            for (int j = 0; j < num_legs.size(); j++) {
-                input_data point_legs_input;
-                if (sqrt((pow(positions_of_markers_box_leg(i)(0) - num_legs[j].xy_coordinates[0], 2) +
-                          pow(positions_of_markers_box_leg(i)(1) - num_legs[j].xy_coordinates[1], 2))) < 0.1) {
+            for (int j = 0; j < cloudpointMsg.size(); j++) {
+                ceres_input point_legs_input;
+                if (sqrt((pow(positions_of_markers_box_leg(i)(0) - cloudpointMsg[j].x, 2) +
+                          pow(positions_of_markers_box_leg(i)(1) - cloudpointMsg[j].y, 2))) < 0.1) {
                     point_legs_input.a = positions_of_markers_on_object(i)(0);
                     point_legs_input.b = positions_of_markers_on_object(i)(1);
-                    point_legs_input.x = num_legs[j].xy_coordinates[0];
-                    point_legs_input.y = num_legs[j].xy_coordinates[1];
-                    point_legs_correspond.push_back(point_legs_input);
+                    point_legs_input.x = cloudpointMsg[j].x;
+                    point_legs_input.y = cloudpointMsg[j].y;
+                    point_legs_correspond_.push_back(point_legs_input);
                 }
             }
         }
         Problem problem;
-        for (int i = 0; i < point_legs_correspond.size(); ++i) {
+        for (int i = 0; i < point_legs_correspond_.size(); ++i) {
             CostFunction *cost_function = new AutoDiffCostFunction<F1, 1, 1, 1, 1>(
-                new F1(point_legs_correspond[i].x, point_legs_correspond[i].y, point_legs_correspond[i].a,
-                       point_legs_correspond[i].b));
+                new F1(point_legs_correspond_[i].x, point_legs_correspond_[i].y, point_legs_correspond_[i].a,
+                       point_legs_correspond_[i].b));
             problem.AddResidualBlock(cost_function, new CauchyLoss(0.5), &iteration_x_, &iteration_y_,
                                      &iteration_angle_);
         }
@@ -211,51 +212,70 @@ void TransportBoxLocalizer::lidarpointcallback(const sensor_msgs::PointCloud2::C
     }
     sensor_msgs::PointCloud2 filtered_point;
     float_union point_x, point_y, intensity;
+    float_union inflation_point_x, inflation_point_y, inflation_point_z, inflation_intensity;
     vector<uint8_t> tmp_data;
-    uint32_t point_count = 0;
-    box_legs box_legs_coordinates;
+    filter_cloudpoint filter_cloudpoint_coordinates;
+
     for (int i = 0; i < pointMsgIn->width; i++) {
         for (int j = 0; j < 4; j++) {
             point_x.cv[j] = pointMsgIn->data[i * 16 + j];
             point_y.cv[j] = pointMsgIn->data[i * 16 + 4 + j];
             intensity.cv[j] = pointMsgIn->data[i * 16 + 12 + j];
         }
+
         if (point_x.fv > detect_down_ && point_x.fv < detect_up_ && fabs(point_y.fv) < detect_right_ &&
             intensity.fv > lidar_intensity_) {
-            point_count++;
-            for (int z = 0; z < 16; z++) {
-                tmp_data.push_back(pointMsgIn->data[i * 16 + z]);
+            double length = hypot(point_x.fv, point_y.fv);
+            for (int i = 0; i < inflation_number_; i++) {
+                filter_cloudpoint_coordinates.x = sin(atan2(point_x.fv, point_y.fv)) *
+                                                  ((i - (inflation_number_ - 1) / 2) * inflation_coefficient_ + length);
+                filter_cloudpoint_coordinates.y = cos(atan2(point_x.fv, point_y.fv)) *
+                                                  ((i - (inflation_number_ - 1) / 2) * inflation_coefficient_ + length);
+                filter_cloudpoint_.push_back(filter_cloudpoint_coordinates);
+
+                inflation_point_x.fv = filter_cloudpoint_coordinates.x;
+                inflation_point_y.fv = filter_cloudpoint_coordinates.y;
+                inflation_point_z.fv = 0;
+                inflation_intensity.fv = intensity.fv;
+
+                for (int j = 0; j < 4; j++) {
+                    tmp_data.push_back(inflation_point_x.cv[j]);
+                }
+                for (int j = 0; j < 4; j++) {
+                    tmp_data.push_back(inflation_point_y.cv[j]);
+                }
+                for (int j = 0; j < 4; j++) {
+                    tmp_data.push_back(inflation_point_z.cv[j]);
+                }
+                for (int j = 0; j < 4; j++) {
+                    tmp_data.push_back(inflation_intensity.cv[j]);
+                }
             }
-            box_legs_coordinates.xy_coordinates[0] = point_x.fv;
-            box_legs_coordinates.xy_coordinates[1] = point_y.fv;
-            box_legs_.push_back(box_legs_coordinates);
         }
     }
-    if (box_legs_.size() == 0) {
-        box_legs_.clear();
+
+    if (filter_cloudpoint_.size() == 0) {
+        filter_cloudpoint_.clear();
         return;
     }
     // debug
     filtered_point.header = pointMsgIn->header;
     filtered_point.height = pointMsgIn->height;
-    filtered_point.width = point_count;
+    filtered_point.width = filter_cloudpoint_.size();
     filtered_point.fields = pointMsgIn->fields;
     filtered_point.is_bigendian = pointMsgIn->is_bigendian;
     filtered_point.point_step = pointMsgIn->point_step;
-    filtered_point.row_step = point_count * 16;
+    filtered_point.row_step = filter_cloudpoint_.size() * 16;
     for (int i = 0; i < filtered_point.row_step; i++) {
         filtered_point.data.push_back(tmp_data[i]);
     }
-    ROS_INFO("point_count: %d", point_count);
     laser_filtered_point_pub.publish(filtered_point);
 
-    ROS_INFO("\r\n");
-
-    estimateBodyPose(box_legs_);
+    estimateBodyPose(filter_cloudpoint_);
 
     tmp_data.clear();
-    box_legs_.clear();
-    point_legs_correspond.clear();
+    filter_cloudpoint_.clear();
+    point_legs_correspond_.clear();
     cluster_box_legs_.clear();
     poseArray.poses.clear();
 }

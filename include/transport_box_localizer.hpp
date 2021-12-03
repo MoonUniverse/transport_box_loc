@@ -42,27 +42,16 @@ typedef union {
 } float_union;
 
 typedef struct {
-    double xy_coordinates[2];
-} box_legs;
-
-typedef struct {
     double x;
     double y;
-    double z;
-} actual_box_leg;
+} filter_cloudpoint;
 
 typedef struct {
     double x;
     double y;
     double a;
     double b;
-} input_data;
-
-typedef struct {
-    double x;
-    double y;
-    unsigned char number;
-} box_leg_point;
+} ceres_input;
 
 struct F1 {
     F1(double x, double y, double a, double b) : x_(x), y_(y), a_(a), b_(b) {}
@@ -85,7 +74,7 @@ private:
     void publishCloud(Pointcloud::Ptr cloud, const ros::Publisher &pub, const std::string &frameId);
     void runBehavior(void);
     void lidarpointcallback(const sensor_msgs::PointCloud2::ConstPtr &pointMsgIn);
-    void estimateBodyPose(vector<box_legs> num_legs);
+    void estimateBodyPose(vector<filter_cloudpoint> cloudpointMsg);
     void cmdcallback(const std_msgs::String::ConstPtr &msg);
 
     std::thread *run_behavior_thread_;
@@ -99,22 +88,22 @@ private:
 
     double detect_up_, detect_down_, detect_right_, detect_left_, lidar_intensity_, feature_dist_;
     double initial_x_, initial_y_, initial_angle_;
+    double inflation_coefficient_;
+    int inflation_number_;
     double iteration_x_, iteration_y_, iteration_angle_;
 
-    vector<box_legs> box_legs_;
-    vector<box_legs> cluster_box_legs_;
-    vector<input_data> point_legs_correspond;
+    vector<filter_cloudpoint> filter_cloudpoint_;
+    vector<filter_cloudpoint> cluster_box_legs_;
+    vector<ceres_input> point_legs_correspond_;
 
     // Debug
     geometry_msgs::PoseArray poseArray;
-    geometry_msgs::Pose box_legs_pose;
 
     unsigned it_since_initialized_;
 
     // Create the marker positions from the test points
     List4DPoints positions_of_markers_on_object;
     List4DPoints positions_of_markers_box_leg;
-    actual_box_leg positions_of_actual_box_leg[5];
 
 public:
     TransportBoxLocalizer();
