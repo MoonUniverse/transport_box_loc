@@ -75,7 +75,6 @@ private:
 
 class TransportBoxLocalizer {
 private:
-    void publishCloud(Pointcloud::Ptr cloud, const ros::Publisher &pub, const std::string &frameId);
     void runBehavior(void);
     void lidarpointcallback(const sensor_msgs::PointCloud2::ConstPtr &pointMsgIn);
     void estimateInitalPose(vector<filter_cloudpoint> cloudpointMsg);
@@ -84,7 +83,6 @@ private:
 
     std::thread *run_behavior_thread_;
 
-    ros::Publisher cloudPub;
     ros::Publisher laser_filtered_point_pub;
     ros::Publisher box_legs_array_pub;
     ros::Publisher box_coordinate_pub;
@@ -96,15 +94,18 @@ private:
     double inflation_coefficient_;
     int inflation_number_;
     double iteration_x_, iteration_y_, iteration_angle_;
+    double error_tolerance_;
+    double length_, width_;
 
     vector<filter_cloudpoint> filter_cloudpoint_;
     vector<cluster_cloudpoint> cluster_cloudpoint_;
     vector<ceres_input> point_legs_correspond_;
 
-    cluster_cloudpoint initial_point_[2];
+    cluster_cloudpoint initial_point_[4];
 
     // Debug
     geometry_msgs::PoseArray poseArray;
+    geometry_msgs::Pose debugPose;
 
     unsigned it_since_initialized_;
 

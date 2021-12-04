@@ -17,6 +17,8 @@ TransportBoxLocalizer::TransportBoxLocalizer() : it_since_initialized_(0) {
     nh.param("inflation_coefficient", inflation_coefficient_, 0.005);
     nh.param("inflation_number", inflation_number_, 5);
 
+    nh.param("error_tolerance", error_tolerance_, 0.05);
+
     // Read in the marker positions from the YAML parameter file
     XmlRpc::XmlRpcValue points_list;
     if (!nh.getParam("marker_positions", points_list)) {
@@ -38,11 +40,13 @@ TransportBoxLocalizer::TransportBoxLocalizer() : it_since_initialized_(0) {
         }
     }
 
+    length_ = fabs(positions_of_markers_on_object(0)(0) - positions_of_markers_on_object(1)(0));
+    width_ = fabs(positions_of_markers_on_object(4)(1) - positions_of_markers_on_object(0)(1));
+
     // publish
-    cloudPub = nh.advertise<sensor_msgs::PointCloud2>("icp_map", 10, true);
     laser_filtered_point_pub = nh.advertise<sensor_msgs::PointCloud2>("laser_filtered_point", 10);
     box_legs_array_pub = nh.advertise<geometry_msgs::PoseArray>("box_legs", 10);
-    box_coordinate_pub = nh.advertise<geometry_msgs::PoseStamped>("/taimi/waste_aruco_position", 10);
+    box_coordinate_pub = nh.advertise<geometry_msgs::PoseStamped>("box_coordinate", 10);
 
     // subscribe
     cloudSub = nh.subscribe<sensor_msgs::PointCloud2>(
@@ -51,28 +55,15 @@ TransportBoxLocalizer::TransportBoxLocalizer() : it_since_initialized_(0) {
     run_behavior_thread_ = new std::thread(std::bind(&TransportBoxLocalizer::runBehavior, this));
 }
 
-void TransportBoxLocalizer::publishCloud(Pointcloud::Ptr cloud, const ros::Publisher &pub, const std::string &frameId) {
-    cloud->header.frame_id = frameId;
-    cloud->header.seq = 0;
-    sensor_msgs::PointCloud2 msg;
-    pcl::toROSMsg(*cloud, msg);
-    msg.header.stamp = ros::Time::now();
-    pub.publish(msg);
-}
-
 void TransportBoxLocalizer::runBehavior(void) {
     ros::NodeHandle nh;
-    ros::Rate rate(10.0);
+    ros::Rate rate(1.0);
     while (nh.ok()) {
         rate.sleep();
     }
 }
 
 void TransportBoxLocalizer::estimateInitalPose(vector<filter_cloudpoint> cloudpointMsg) {
-    // num legs too little
-    if (cloudpointMsg.size() < 15) {
-        return;
-    }
     double sum_x_pos = 0, sum_y_pos = 0;
     uint32_t classify_number = 0;
     bool classify_flag = false;
@@ -108,7 +99,6 @@ void TransportBoxLocalizer::estimateInitalPose(vector<filter_cloudpoint> cloudpo
         sum_x_pos = 0;
         sum_y_pos = 0;
     }
-    ROS_INFO("cluster_cloudpoint_:%ld", cluster_cloudpoint_.size());
 
     if (cluster_cloudpoint_.size() < 2) {
         return;
@@ -126,7 +116,9 @@ void TransportBoxLocalizer::estimateInitalPose(vector<filter_cloudpoint> cloudpo
                 double y1 = cluster_cloudpoint_[i].y;
                 double x2 = cluster_cloudpoint_[j].x;
                 double y2 = cluster_cloudpoint_[j].y;
-                double R = hypot(feature_dist_ / 2, 0.67 / 2);
+                // circles R
+                double R = hypot(feature_dist_ / 2, width_ / 2);
+
                 double c1 = 0, c2 = 0, A = 0, B = 0, C = 0, y01 = 0, x01 = 0, x02 = 0, y02 = 0;
                 if (x1 != x2) {
                     c1 = (pow(x2, 2) - pow(x1, 2) + pow(y2, 2) - pow(y1, 2)) / 2 / (x2 - x1);
@@ -148,6 +140,18 @@ void TransportBoxLocalizer::estimateInitalPose(vector<filter_cloudpoint> cloudpo
                     float distance = hypot(expect_x, expect_y);
                     if (distance < feature_distance) {
                         feature_distance = distance;
+                        if (hypot(cluster_cloudpoint_[i].x, cluster_cloudpoint_[i].y) <
+                            hypot(cluster_cloudpoint_[j].x, cluster_cloudpoint_[j].y)) {
+                            initial_point_[0].x = cluster_cloudpoint_[i].x;
+                            initial_point_[0].y = cluster_cloudpoint_[i].y;
+                            initial_point_[1].x = cluster_cloudpoint_[j].x;
+                            initial_point_[1].y = cluster_cloudpoint_[j].y;
+                        } else {
+                            initial_point_[0].x = cluster_cloudpoint_[j].x;
+                            initial_point_[0].y = cluster_cloudpoint_[j].y;
+                            initial_point_[1].x = cluster_cloudpoint_[i].x;
+                            initial_point_[1].y = cluster_cloudpoint_[i].y;
+                        }
                     }
                 } else {
                     ROS_ERROR("find circle center fail");
@@ -155,6 +159,35 @@ void TransportBoxLocalizer::estimateInitalPose(vector<filter_cloudpoint> cloudpo
             }
         }
     }
+    double error_angle =
+        atan2((initial_point_[1].y - initial_point_[0].y), (initial_point_[1].x - initial_point_[0].x));
+    for (int i = 0; i < cluster_cloudpoint_.size() - 1; i++) {
+        double current_distance =
+            hypot(cluster_cloudpoint_[i].x - initial_point_[0].x, cluster_cloudpoint_[i].y - initial_point_[0].y);
+        double current_angle =
+            atan2((cluster_cloudpoint_[i].y - initial_point_[0].y), (cluster_cloudpoint_[i].x - initial_point_[0].x));
+        if (fabs(current_distance - length_) < 0.05) {
+            if (fabs(current_angle - error_angle) < 0.05) {
+                initial_point_[2].x = cluster_cloudpoint_[i].x;
+                initial_point_[2].y = cluster_cloudpoint_[i].y;
+            }
+        } else if (fabs(current_distance - width_) < 0.05) {
+            if (fabs(fabs(current_angle - error_angle) - 1.57) < 0.05) {
+                initial_point_[3].x = cluster_cloudpoint_[i].x;
+                initial_point_[3].y = cluster_cloudpoint_[i].y;
+            }
+        }
+    }
+    for (int i = 0; i < 4; i++) {
+        debugPose.position.x = initial_point_[i].x;
+        debugPose.position.y = initial_point_[i].y;
+        debugPose.position.z = 0;
+        poseArray.poses.push_back(debugPose);
+    }
+    // debug init pose
+    poseArray.header.frame_id = "laser_sick_tim551";
+    poseArray.header.stamp = ros::Time::now();
+    box_legs_array_pub.publish(poseArray);
 
     cluster_cloudpoint_.clear();
 }
@@ -165,133 +198,121 @@ void TransportBoxLocalizer::estimateBodyPose(vector<filter_cloudpoint> cloudpoin
         return;
     }
 
-    estimateInitalPose(cloudpointMsg);
-
     if (it_since_initialized_ < 1) {
         it_since_initialized_++;
-        // estimateInitalPose(cloudpointMsg);
-        // // processing point
-        // positions_of_markers_box_leg.resize(positions_of_markers_on_object.size());
-        // for (int i = 0; i < positions_of_markers_on_object.size(); i++) {
-        //     Eigen::Matrix<double, 4, 1> initialized_box_legs;
-        //     initialized_box_legs(0) = positions_of_markers_on_object(i)(0) * cos(initial_angle_) -
-        //                               positions_of_markers_on_object(i)(1) * sin(initial_angle_) + initial_x_;
-        //     initialized_box_legs(1) = positions_of_markers_on_object(i)(0) * sin(initial_angle_) +
-        //                               positions_of_markers_on_object(i)(1) * cos(initial_angle_) + initial_y_;
-        //     initialized_box_legs(2) = positions_of_markers_on_object(i)(2);
-        //     initialized_box_legs(3) = positions_of_markers_on_object(i)(3);
 
-        //     positions_of_markers_box_leg(i) = initialized_box_legs;
-        // }
-        // for (int i = 0; i < positions_of_markers_box_leg.size(); i++) {
-        //     for (int j = 0; j < cloudpointMsg.size(); j++) {
-        //         ceres_input point_legs_input;
-        //         if (sqrt((pow(positions_of_markers_box_leg(i)(0) - cloudpointMsg[j].x, 2) +
-        //                   pow(positions_of_markers_box_leg(i)(1) - cloudpointMsg[j].y, 2))) < 0.15) {
-        //             point_legs_input.a = positions_of_markers_on_object(i)(0);
-        //             point_legs_input.b = positions_of_markers_on_object(i)(1);
-        //             point_legs_input.x = cloudpointMsg[j].x;
-        //             point_legs_input.y = cloudpointMsg[j].y;
-        //             point_legs_correspond_.push_back(point_legs_input);
-        //         }
-        //     }
-        // }
+        estimateInitalPose(cloudpointMsg);
 
-        // Problem problem;
-        // for (int i = 0; i < point_legs_correspond_.size(); ++i) {
-        //     CostFunction *cost_function = new AutoDiffCostFunction<F1, 1, 1, 1, 1>(
-        //         new F1(point_legs_correspond_[i].x, point_legs_correspond_[i].y, point_legs_correspond_[i].a,
-        //                point_legs_correspond_[i].b));
-        //     problem.AddResidualBlock(cost_function, new CauchyLoss(0.5), &initial_x_, &initial_y_, &initial_angle_);
-        // }
+        ceres_input point_legs_input;
+        for (int i = 0; i < 3; i++) {
+            point_legs_input.a = positions_of_markers_on_object(4 - i)(0);
+            point_legs_input.b = positions_of_markers_on_object(4 - i)(1);
+            point_legs_input.x = initial_point_[i].x;
+            point_legs_input.y = initial_point_[i].y;
+            point_legs_correspond_.push_back(point_legs_input);
+        }
+        point_legs_input.a = positions_of_markers_on_object(0)(0);
+        point_legs_input.b = positions_of_markers_on_object(0)(1);
+        point_legs_input.x = initial_point_[3].x;
+        point_legs_input.y = initial_point_[3].y;
+        point_legs_correspond_.push_back(point_legs_input);
 
-        // Solver::Options options;
-        // options.linear_solver_type = ceres::DENSE_QR;
-        // options.minimizer_progress_to_stdout = true;
+        Problem problem;
+        for (int i = 0; i < point_legs_correspond_.size(); ++i) {
+            CostFunction *cost_function = new AutoDiffCostFunction<F1, 1, 1, 1, 1>(
+                new F1(point_legs_correspond_[i].x, point_legs_correspond_[i].y, point_legs_correspond_[i].a,
+                       point_legs_correspond_[i].b));
+            problem.AddResidualBlock(cost_function, new CauchyLoss(0.5), &initial_x_, &initial_y_, &initial_angle_);
+        }
 
-        // std::cout << "Initial x = " << initial_x_ << ", y = " << initial_y_ << ", angle = " << initial_angle_ <<
-        // "\n"; Solver::Summary summary; ceres::Solve(options, &problem, &summary);
+        Solver::Options options;
+        options.linear_solver_type = ceres::DENSE_QR;
+        options.minimizer_progress_to_stdout = true;
 
-        // std::cout << summary.FullReport() << "\n";
+        std::cout << "Initial x = " << initial_x_ << ", y = " << initial_y_ << ", angle = " << initial_angle_ << "\n";
+        Solver::Summary summary;
+        ceres::Solve(options, &problem, &summary);
 
-        // iteration_x_ = initial_x_;
-        // iteration_y_ = initial_y_;
-        // iteration_angle_ = initial_angle_;
-        // std::cout << "Final   x: " << initial_x_ << " y: " << initial_y_ << " angle = " << initial_angle_ << "\n";
-        // geometry_msgs::PoseStamped box_coordinate;
+        std::cout << summary.FullReport() << "\n";
 
-        // box_coordinate.header.frame_id = "laser_sick_tim551";
-        // box_coordinate.header.stamp = ros::Time::now();
+        iteration_x_ = initial_x_;
+        iteration_y_ = initial_y_;
+        iteration_angle_ = initial_angle_;
+        std::cout << "Final   x: " << initial_x_ << " y: " << initial_y_ << " angle = " << initial_angle_ << "\n";
+        geometry_msgs::PoseStamped box_coordinate;
 
-        // box_coordinate.pose.position.x = initial_x_;
-        // box_coordinate.pose.position.y = initial_y_;
-        // tf::Quaternion quat;
-        // quat = tf::createQuaternionFromYaw(initial_angle_);
-        // box_coordinate.pose.orientation.w = quat.getW();
-        // box_coordinate.pose.orientation.x = quat.getX();
-        // box_coordinate.pose.orientation.y = quat.getY();
-        // box_coordinate.pose.orientation.z = quat.getZ();
+        box_coordinate.header.frame_id = "laser_sick_tim551";
+        box_coordinate.header.stamp = ros::Time::now();
 
-        // box_coordinate_pub.publish(box_coordinate);
+        box_coordinate.pose.position.x = initial_x_;
+        box_coordinate.pose.position.y = initial_y_;
+        tf::Quaternion quat;
+        quat = tf::createQuaternionFromYaw(initial_angle_);
+        box_coordinate.pose.orientation.w = quat.getW();
+        box_coordinate.pose.orientation.x = quat.getX();
+        box_coordinate.pose.orientation.y = quat.getY();
+        box_coordinate.pose.orientation.z = quat.getZ();
+
+        box_coordinate_pub.publish(box_coordinate);
     } else {
-        // // processing point
-        // positions_of_markers_box_leg.resize(positions_of_markers_on_object.size());
-        // for (int i = 0; i < positions_of_markers_on_object.size(); i++) {
-        //     Eigen::Matrix<double, 4, 1> initialized_box_legs;
-        //     initialized_box_legs(0) = positions_of_markers_on_object(i)(0) * cos(iteration_angle_) -
-        //                               positions_of_markers_on_object(i)(1) * sin(iteration_angle_) + iteration_x_;
-        //     initialized_box_legs(1) = positions_of_markers_on_object(i)(0) * sin(iteration_angle_) +
-        //                               positions_of_markers_on_object(i)(1) * cos(iteration_angle_) + iteration_y_;
-        //     initialized_box_legs(2) = positions_of_markers_on_object(i)(2);
-        //     initialized_box_legs(3) = positions_of_markers_on_object(i)(3);
+        // processing point
+        positions_of_markers_box_leg.resize(positions_of_markers_on_object.size());
+        for (int i = 0; i < positions_of_markers_on_object.size(); i++) {
+            Eigen::Matrix<double, 4, 1> initialized_box_legs;
+            initialized_box_legs(0) = positions_of_markers_on_object(i)(0) * cos(iteration_angle_) -
+                                      positions_of_markers_on_object(i)(1) * sin(iteration_angle_) + iteration_x_;
+            initialized_box_legs(1) = positions_of_markers_on_object(i)(0) * sin(iteration_angle_) +
+                                      positions_of_markers_on_object(i)(1) * cos(iteration_angle_) + iteration_y_;
+            initialized_box_legs(2) = positions_of_markers_on_object(i)(2);
+            initialized_box_legs(3) = positions_of_markers_on_object(i)(3);
 
-        //     positions_of_markers_box_leg(i) = initialized_box_legs;
-        // }
+            positions_of_markers_box_leg(i) = initialized_box_legs;
+        }
 
-        // for (int i = 0; i < positions_of_markers_box_leg.size(); i++) {
-        //     for (int j = 0; j < cloudpointMsg.size(); j++) {
-        //         ceres_input point_legs_input;
-        //         if (sqrt((pow(positions_of_markers_box_leg(i)(0) - cloudpointMsg[j].x, 2) +
-        //                   pow(positions_of_markers_box_leg(i)(1) - cloudpointMsg[j].y, 2))) < 0.1) {
-        //             point_legs_input.a = positions_of_markers_on_object(i)(0);
-        //             point_legs_input.b = positions_of_markers_on_object(i)(1);
-        //             point_legs_input.x = cloudpointMsg[j].x;
-        //             point_legs_input.y = cloudpointMsg[j].y;
-        //             point_legs_correspond_.push_back(point_legs_input);
-        //         }
-        //     }
-        // }
-        // Problem problem;
-        // for (int i = 0; i < point_legs_correspond_.size(); ++i) {
-        //     CostFunction *cost_function = new AutoDiffCostFunction<F1, 1, 1, 1, 1>(
-        //         new F1(point_legs_correspond_[i].x, point_legs_correspond_[i].y, point_legs_correspond_[i].a,
-        //                point_legs_correspond_[i].b));
-        //     problem.AddResidualBlock(cost_function, new CauchyLoss(0.5), &iteration_x_, &iteration_y_,
-        //                              &iteration_angle_);
-        // }
-        // Solver::Options options;
-        // options.linear_solver_type = ceres::DENSE_QR;
-        // options.minimizer_progress_to_stdout = true;
+        for (int i = 0; i < positions_of_markers_box_leg.size(); i++) {
+            for (int j = 0; j < cloudpointMsg.size(); j++) {
+                ceres_input point_legs_input;
+                if (sqrt((pow(positions_of_markers_box_leg(i)(0) - cloudpointMsg[j].x, 2) +
+                          pow(positions_of_markers_box_leg(i)(1) - cloudpointMsg[j].y, 2))) < 0.1) {
+                    point_legs_input.a = positions_of_markers_on_object(i)(0);
+                    point_legs_input.b = positions_of_markers_on_object(i)(1);
+                    point_legs_input.x = cloudpointMsg[j].x;
+                    point_legs_input.y = cloudpointMsg[j].y;
+                    point_legs_correspond_.push_back(point_legs_input);
+                }
+            }
+        }
+        Problem problem;
+        for (int i = 0; i < point_legs_correspond_.size(); ++i) {
+            CostFunction *cost_function = new AutoDiffCostFunction<F1, 1, 1, 1, 1>(
+                new F1(point_legs_correspond_[i].x, point_legs_correspond_[i].y, point_legs_correspond_[i].a,
+                       point_legs_correspond_[i].b));
+            problem.AddResidualBlock(cost_function, new CauchyLoss(0.5), &iteration_x_, &iteration_y_,
+                                     &iteration_angle_);
+        }
+        Solver::Options options;
+        options.linear_solver_type = ceres::DENSE_QR;
+        options.minimizer_progress_to_stdout = true;
 
-        // Solver::Summary summary;
-        // ceres::Solve(options, &problem, &summary);
+        Solver::Summary summary;
+        ceres::Solve(options, &problem, &summary);
 
-        // std::cout << "Final   x: " << iteration_x_ << " y: " << iteration_y_ << " angle = " << iteration_angle_ <<
-        // "\n"; geometry_msgs::PoseStamped box_coordinate;
+        std::cout << "Final   x: " << iteration_x_ << " y: " << iteration_y_ << " angle = " << iteration_angle_ << "\n";
+        geometry_msgs::PoseStamped box_coordinate;
 
-        // box_coordinate.header.frame_id = "laser_sick_tim551";
-        // box_coordinate.header.stamp = ros::Time::now();
+        box_coordinate.header.frame_id = "laser_sick_tim551";
+        box_coordinate.header.stamp = ros::Time::now();
 
-        // box_coordinate.pose.position.x = iteration_x_;
-        // box_coordinate.pose.position.y = iteration_y_;
-        // tf::Quaternion quat;
-        // quat = tf::createQuaternionFromYaw(iteration_angle_);
-        // box_coordinate.pose.orientation.w = quat.getW();
-        // box_coordinate.pose.orientation.x = quat.getX();
-        // box_coordinate.pose.orientation.y = quat.getY();
-        // box_coordinate.pose.orientation.z = quat.getZ();
+        box_coordinate.pose.position.x = iteration_x_;
+        box_coordinate.pose.position.y = iteration_y_;
+        tf::Quaternion quat;
+        quat = tf::createQuaternionFromYaw(iteration_angle_);
+        box_coordinate.pose.orientation.w = quat.getW();
+        box_coordinate.pose.orientation.x = quat.getX();
+        box_coordinate.pose.orientation.y = quat.getY();
+        box_coordinate.pose.orientation.z = quat.getZ();
 
-        // box_coordinate_pub.publish(box_coordinate);
+        box_coordinate_pub.publish(box_coordinate);
     }
 }
 
