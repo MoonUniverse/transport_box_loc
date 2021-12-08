@@ -12,6 +12,7 @@
     <param name="detect_left"     type="double" value= "1.5"  />
     <param name="lidar_intensity" type="double" value= "32500.0"  /> 
     <param name="feature_dist"    type="double" value= "0.15"  /> 
+    <param name="base_sick_link"  type="double" value= "0.223"  />
     
     <param name="initial_x"       type="double" value= "0.0"  />
     <param name="initial_y"       type="double" value= "0.0"  />
@@ -23,4 +24,7 @@
     <param name="error_tolerance" type="double" value= "0.05"  />
 
   </node>
+
+  <node name="static_transform_publisher_sick_tim551" pkg="tf2_ros" type="static_transform_publisher" args="0.223 0 0 0 0 0 1 base_link laser_sick_tim551" />
+
 </launch>

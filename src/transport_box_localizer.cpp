@@ -13,6 +13,7 @@ TransportBoxLocalizer::TransportBoxLocalizer() : it_since_initialized_(0) {
     nh.param("initial_x", initial_x_, 0.7);
     nh.param("initial_y", initial_y_, 0.0);
     nh.param("initial_angle", initial_angle_, 0.0);
+    nh.param("base_sick_link", base_sick_link_, 0.223);
 
     nh.param("inflation_coefficient", inflation_coefficient_, 0.005);
     nh.param("inflation_number", inflation_number_, 5);
@@ -185,7 +186,7 @@ void TransportBoxLocalizer::estimateInitalPose(vector<filter_cloudpoint> cloudpo
         poseArray.poses.push_back(debugPose);
     }
     // debug init pose
-    poseArray.header.frame_id = "laser_sick_tim551";
+    poseArray.header.frame_id = "base_link";
     poseArray.header.stamp = ros::Time::now();
     box_legs_array_pub.publish(poseArray);
 
@@ -241,7 +242,7 @@ void TransportBoxLocalizer::estimateBodyPose(vector<filter_cloudpoint> cloudpoin
         std::cout << "Final   x: " << initial_x_ << " y: " << initial_y_ << " angle = " << initial_angle_ << "\n";
         geometry_msgs::PoseStamped box_coordinate;
 
-        box_coordinate.header.frame_id = "laser_sick_tim551";
+        box_coordinate.header.frame_id = "base_link";
         box_coordinate.header.stamp = ros::Time::now();
 
         box_coordinate.pose.position.x = initial_x_;
@@ -300,7 +301,7 @@ void TransportBoxLocalizer::estimateBodyPose(vector<filter_cloudpoint> cloudpoin
         std::cout << "Final   x: " << iteration_x_ << " y: " << iteration_y_ << " angle = " << iteration_angle_ << "\n";
         geometry_msgs::PoseStamped box_coordinate;
 
-        box_coordinate.header.frame_id = "laser_sick_tim551";
+        box_coordinate.header.frame_id = "base_link";
         box_coordinate.header.stamp = ros::Time::now();
 
         box_coordinate.pose.position.x = iteration_x_;
@@ -335,6 +336,7 @@ void TransportBoxLocalizer::lidarpointcallback(const sensor_msgs::PointCloud2::C
 
         if (point_x.fv > detect_down_ && point_x.fv < detect_up_ && fabs(point_y.fv) < detect_right_ &&
             intensity.fv > lidar_intensity_) {
+            point_x.fv = point_x.fv + base_sick_link_;
             double length = hypot(point_x.fv, point_y.fv);
             for (int i = 0; i < inflation_number_; i++) {
                 filter_cloudpoint_coordinates.x = sin(atan2(point_x.fv, point_y.fv)) *
@@ -369,7 +371,8 @@ void TransportBoxLocalizer::lidarpointcallback(const sensor_msgs::PointCloud2::C
         return;
     }
     // debug
-    filtered_point.header = pointMsgIn->header;
+    filtered_point.header.frame_id = "base_link";
+    filtered_point.header.stamp = ros::Time::now();
     filtered_point.height = pointMsgIn->height;
     filtered_point.width = filter_cloudpoint_.size();
     filtered_point.fields = pointMsgIn->fields;

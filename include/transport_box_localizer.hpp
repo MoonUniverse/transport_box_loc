@@ -91,6 +91,7 @@ private:
 
     double detect_up_, detect_down_, detect_right_, detect_left_, lidar_intensity_, feature_dist_;
     double initial_x_, initial_y_, initial_angle_;
+    double base_sick_link_;
     double inflation_coefficient_;
     int inflation_number_;
     double iteration_x_, iteration_y_, iteration_angle_;
